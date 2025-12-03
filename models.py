@@ -6,48 +6,72 @@ from skorch.callbacks import EarlyStopping
 from config import device
 
 
-class SolarModule(nn.Module):
+class SampleANN(nn.Module):
     def __init__(self, num_inputs=10, num_units=64, dropout=0.1):
-        super(SolarModule, self).__init__()
-        self.dense0 = nn.Linear(num_inputs, num_units)
-        self.dropout = nn.Dropout(dropout)
-        self.dense1 = nn.Linear(num_units, num_units // 2)
-        self.output = nn.Linear(num_units // 2, 1)
-        self.relu = nn.ReLU()
+        super(SampleANN, self).__init__()
+        self.dense = nn.Sequential(
+            nn.Linear(num_inputs, num_units),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(num_units, num_units // 2),
+            nn.ReLU(),
+            nn.Linear(num_units // 2, 1)
+        )
 
     def forward(self, X):
-        X = self.relu(self.dense0(X))
-        X = self.dropout(X)
-        X = self.relu(self.dense1(X))
-        X = self.output(X)
-        return X
+        return self.dense(X)
 
 
-# --- B. Skorch Wrapper with Early Stopping ---
-def get_ann_model(input_dim):
-    """
-    Returns a skorch NeuralNetRegressor with EarlyStopping enabled.
-    """
-    # EarlyStopping callback monitors 'valid_loss' by default
-    early_stopping = EarlyStopping(
-        monitor='valid_loss',
-        patience=10,
-        threshold=0.0001,
-        lower_is_better=True,
-    )
+class SampleLSTM(nn.Module):
+    def __init__(self, num_inputs, hidden_units=50, num_layers=2, dropout=0.2):
+        super(SampleLSTM, self).__init__()
+        self.num_layers = num_layers
+        self.hidden_units = hidden_units
+        # batch_first=True expects input shape (Batch, Seq_Len, Features)
+        self.lstm = nn.LSTM(num_inputs, hidden_units, num_layers,
+                            batch_first=True, dropout=dropout)
+        self.fc = nn.Linear(hidden_units, 1)
 
-    net = NeuralNetRegressor(
-        module=SolarModule,
-        module__num_inputs=input_dim,
-        max_epochs=100,
-        lr=0.001,
-        batch_size=64,
-        optimizer=torch.optim.Adam,
-        criterion=nn.MSELoss,
-        device=device,
-        # train_split automatically creates the validation set for us
-        # ValidSplit(0.1) reserves 10% of training data for validation
-        callbacks=[early_stopping],
-        verbose=1  # Set to 1 to see epoch logs
-    )
-    return net
+    def forward(self, x):
+        # LSTM output: (Batch, Seq_Len, Hidden)
+        out, _ = self.lstm(x)
+        # We only care about the last time step for forecasting
+        last_step_out = out[:, -1, :]
+        return self.fc(last_step_out)
+
+
+def get_skorch_model(model_type, input_shape):
+    """Factory for Skorch Wrappers"""
+    early_stopping = EarlyStopping(monitor='valid_loss', patience=15, threshold=0.0001, lower_is_better=True)
+
+    if model_type == 'LSTM':
+        # Input shape for LSTM is (Seq_Len, Features) - we need Features
+        # X shape coming in is (Batch, Seq, Feat)
+        n_features = input_shape[2]
+        return NeuralNetRegressor(
+            module=SampleLSTM,
+            module__num_inputs=n_features,
+            module__hidden_units=64,
+            max_epochs=100,
+            lr=0.005,
+            batch_size=64,
+            optimizer=torch.optim.Adam,
+            criterion=nn.MSELoss,
+            device=device,
+            callbacks=[early_stopping],
+            verbose=1
+        )
+
+    elif model_type == 'ANN':
+        return NeuralNetRegressor(
+            module=SampleANN,
+            module__num_inputs=input_shape[1],
+            max_epochs=100,
+            lr=0.001,
+            batch_size=64,
+            optimizer=torch.optim.Adam,
+            criterion=nn.MSELoss,
+            device=device,
+            callbacks=[early_stopping],
+            verbose=1
+        )
