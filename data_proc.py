@@ -2,7 +2,8 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
-TIMESTAMP_NAMES = ['DATE_TIME', 'Timestamp']
+from config import TIMESTAMP_NAMES
+
 
 def load_raw_data(file_path, target_col='AC_POWER'):
     """Loads and performs basic cleaning. Returns dataframe."""
@@ -24,7 +25,6 @@ def load_raw_data(file_path, target_col='AC_POWER'):
             break
 
     df = df.fillna(method='ffill').fillna(method='bfill')
-    # Move Target to the end for easier slicing
     target_col = target_col if target_col in df.columns else df.columns[-1]
     cols = [c for c in df.columns if c != target_col] + [target_col]
     df = df[cols]
@@ -39,15 +39,11 @@ def create_lags(data, n_in=3):
     """
     n_vars = data.shape[1]
     cols = []
-    # Create lag sequence (t-n, ... t-1)
     for i in range(n_in, 0, -1):
         cols.append(np.roll(data, i, axis=0))
-    # Create current time (t) - usually we only want current WEATHER, not current POWER
-    # But for simplicity here, we include all, then you drop target t later
     cols.append(data)
 
     agg = np.column_stack(cols)
-    # Drop rows with NaN (due to shift)
     return agg[n_in:, :]
 
 
@@ -58,11 +54,8 @@ def create_sequences(data, seq_len=24):
     Assumes the LAST column is the target.
     """
     X, y = [], []
-    # Loop to create sequences
     for i in range(len(data) - seq_len):
-        # Input: All columns, history of 'seq_len'
         X.append(data[i: i + seq_len, :])
-        # Target: The target column at the NEXT step
         y.append(data[i + seq_len, -1])
 
     return np.array(X), np.array(y).reshape(-1, 1)
@@ -75,7 +68,6 @@ def process_fold_data(X_train_raw, X_test_raw, method='standard', seq_len=3):
     """
     scaler = StandardScaler()
 
-    # 1. Fit Scaler on TRAIN, Transform TEST
     train_scaled = scaler.fit_transform(X_train_raw)
     test_scaled = scaler.transform(X_test_raw)
 
@@ -86,7 +78,6 @@ def process_fold_data(X_train_raw, X_test_raw, method='standard', seq_len=3):
         return X_train, y_train, X_test, y_test, scaler
 
     elif method == 'lagged':
-        # Apply lags
         train_lagged = create_lags(train_scaled, n_in=seq_len)
         test_lagged = create_lags(test_scaled, n_in=seq_len)
 
@@ -96,7 +87,6 @@ def process_fold_data(X_train_raw, X_test_raw, method='standard', seq_len=3):
         return X_train, y_train, X_test, y_test, scaler
 
     elif method == 'sequence':
-        # create_sequences handles the X/y split
         X_train, y_train = create_sequences(train_scaled, seq_len)
         X_test, y_test = create_sequences(test_scaled, seq_len)
         return X_train, y_train, X_test, y_test, scaler

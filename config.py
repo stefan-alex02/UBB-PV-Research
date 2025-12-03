@@ -13,13 +13,14 @@ np.random.seed(SEED)
 torch.manual_seed(SEED)
 
 # Data set specific config
+TIMESTAMP_NAMES = ['DATE_TIME', 'Timestamp']
 # path = "data/dummy.csv"
 path = "data/Solar_Energy_Generation_CK2.csv"
 target_column = 'SolarGeneration'
 
 # Data loading config
-loading_method = 'sequence'  # 'standard', 'lagged', 'sequence'
+loading_method = 'standard'  # 'standard', 'lagged', 'sequence'
 seq_len = 24  # For lagged and sequence methods
 
 # Model config
-model_name = 'LSTM'  # 'ANN', 'LSTM', 'RandomForest', 'SVR', 'XGBoost'
+model_name = 'ANN'  # 'ANN', 'LSTM', 'RandomForest', 'SVR', 'XGBoost'

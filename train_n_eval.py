@@ -21,6 +21,7 @@ def calculate_metrics(y_true, y_pred):
     mape = np.mean(np.abs((y_true[mask] - y_pred[mask]) / y_true[mask])) * 100 if np.sum(mask) > 0 else 0.0
     return {'MAE': mae, 'RMSE': rmse, 'NRMSE': nrmse, 'MAPE': mape, 'R2': r2}
 
+
 def get_confidence_interval(data):
     if len(data) < 2: return np.mean(data), 0.0
     sem = stats.sem(data)
@@ -32,27 +33,21 @@ def run_benchmark(path, target_column='AC_POWER', model_name='LSTM', loading_met
     """
     loading_method: 'standard', 'lagged', or 'sequence'
     """
-    # 1. Load Raw Data (Features + Target together)
     raw_data, _ = load_raw_data(path, target_col=target_column)
 
-    kf = KFold(n_splits=k_folds, shuffle=False)  # Shuffle False usually better for time-series blocks
+    kf = KFold(n_splits=k_folds, shuffle=False)
     metrics_hist = {'MAE': [], 'RMSE': [], 'NRMSE': [], 'MAPE': [], 'R2': []}
 
     print(f"\n>>> Running {model_name} with '{loading_method}' data (Window={seq_len})...")
 
-    # Raw Data Split
     for fold, (train_idx, test_idx) in enumerate(kf.split(raw_data)):
 
-        # Split Raw Data first
         X_train_raw, X_test_raw = raw_data[train_idx], raw_data[test_idx]
 
-        # 2. Process Data (Scale -> Lag/Sequence)
-        # This handles all the complexity of reshaping
         X_train, y_train, X_test, y_test, scaler = process_fold_data(
             X_train_raw, X_test_raw, method=loading_method, seq_len=seq_len
         )
 
-        # 3. Model Training
         model = None
 
         if model_name in ['ANN', 'LSTM']:
@@ -61,11 +56,8 @@ def run_benchmark(path, target_column='AC_POWER', model_name='LSTM', loading_met
             y_pred_scaled = model.predict(X_test)
 
         elif model_name == 'XGBoost':
-            # XGB needs 2D data. If 'sequence' passed by mistake, warn or flatten.
-            if len(X_train.shape) > 2:
-                # Flatten 3D to 2D: (N, T, F) -> (N, T*F)
-                X_train = X_train.reshape(X_train.shape[0], -1)
-                X_test = X_test.reshape(X_test.shape[0], -1)
+            if len(X_train.shape) > 2: # XGB needs 2D data
+                raise ValueError("invalid loading method for XGBoost")
 
             # Internal Split for XGB Early Stopping
             X_tr, X_val, y_tr, y_val = train_test_split(X_train, y_train, test_size=0.1, random_state=SEED)
@@ -87,14 +79,6 @@ def run_benchmark(path, target_column='AC_POWER', model_name='LSTM', loading_met
             model.fit(X_train, y_train.ravel())
             y_pred_scaled = model.predict(X_test).reshape(-1, 1)
 
-        # 4. Inverse Transform Target (To get real kW error)
-        # Note: process_fold_data scaled the whole dataset (including y).
-        # We need to inverse transform Y using the scaler's last column stats.
-
-        # Create a dummy matrix to inverse transform ONLY the target column
-        # This is a bit hacky because scaler works on all columns
-        # Shape of y is (N, 1). We need (N, Full_Cols).
-
         def inverse_y(y_s):
             n_samples = y_s.shape[0]
             n_cols = scaler.mean_.shape[0]
@@ -105,13 +89,12 @@ def run_benchmark(path, target_column='AC_POWER', model_name='LSTM', loading_met
         y_true = inverse_y(y_test)
         y_pred = inverse_y(y_pred_scaled)
 
-        # 5. Metrics
+        # Metrics
         y_pred = np.maximum(y_pred, 0)  # Physics check
         m = calculate_metrics(y_true, y_pred)
         for k, v in m.items(): metrics_hist[k].append(v)
         print(f"Fold {fold + 1}: RMSE={m['RMSE']:.4f}")
 
-    # Final Report
     print(f"\n=== Final Results: {model_name} ({loading_method}) ===")
     for k in metrics_hist:
         mu, ci = get_confidence_interval(metrics_hist[k])

@@ -27,15 +27,13 @@ class SampleLSTM(nn.Module):
         super(SampleLSTM, self).__init__()
         self.num_layers = num_layers
         self.hidden_units = hidden_units
-        # batch_first=True expects input shape (Batch, Seq_Len, Features)
         self.lstm = nn.LSTM(num_inputs, hidden_units, num_layers,
-                            batch_first=True, dropout=dropout)
+                            batch_first=True, # batch_first=True expects input shape (Batch, Seq_Len, Features)
+                            dropout=dropout)
         self.fc = nn.Linear(hidden_units, 1)
 
     def forward(self, x):
-        # LSTM output: (Batch, Seq_Len, Hidden)
         out, _ = self.lstm(x)
-        # We only care about the last time step for forecasting
         last_step_out = out[:, -1, :]
         return self.fc(last_step_out)
 
@@ -45,8 +43,6 @@ def get_skorch_model(model_type, input_shape):
     early_stopping = EarlyStopping(monitor='valid_loss', patience=15, threshold=0.0001, lower_is_better=True)
 
     if model_type == 'LSTM':
-        # Input shape for LSTM is (Seq_Len, Features) - we need Features
-        # X shape coming in is (Batch, Seq, Feat)
         n_features = input_shape[2]
         return NeuralNetRegressor(
             module=SampleLSTM,
@@ -75,3 +71,6 @@ def get_skorch_model(model_type, input_shape):
             callbacks=[early_stopping],
             verbose=1
         )
+
+    else:
+        raise ValueError(f"Unknown model type: {model_type}")
