@@ -1,4 +1,8 @@
+import os
+from datetime import datetime
+
 import numpy as np
+import pandas as pd
 import scipy.stats as stats
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
@@ -33,7 +37,18 @@ def run_benchmark(path, target_column='AC_POWER', model_name='LSTM', loading_met
     """
     loading_method: 'standard', 'lagged', or 'sequence'
     """
-    raw_data, _ = load_raw_data(path, target_col=target_column)
+    raw_data, _, dataset_name = load_raw_data(path, target_col=target_column)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    # Create Path: [data_set]/[model_name]/[timestamp]
+    save_dir = os.path.join(dataset_name, model_name, timestamp)
+    os.makedirs(save_dir, exist_ok=True)
+    print(f"Results will be saved to: {save_dir}")
+
+    # Storage for detailed logs
+    history_all_folds = []  # To store epoch-wise loss for every fold
+    fold_results_list = []  # To store metrics for every fold
 
     kf = KFold(n_splits=k_folds, shuffle=False)
     metrics_hist = {'MAE': [], 'RMSE': [], 'NRMSE': [], 'MAPE': [], 'R2': []}
@@ -50,9 +65,16 @@ def run_benchmark(path, target_column='AC_POWER', model_name='LSTM', loading_met
 
         model = None
 
+        train_loss_history = []
+        valid_loss_history = []
+
         if model_name in ['ANN', 'LSTM']:
             model = get_skorch_model(model_name, X_train.shape)
             model.fit(X_train, y_train)
+
+            train_loss_history = model.history_[:, 'train_loss']
+            valid_loss_history = model.history_[:, 'valid_loss']
+
             y_pred_scaled = model.predict(X_test)
 
         elif model_name == 'XGBoost':
@@ -64,6 +86,11 @@ def run_benchmark(path, target_column='AC_POWER', model_name='LSTM', loading_met
 
             model = XGBRegressor(n_estimators=1000, learning_rate=0.05, n_jobs=-1, random_state=SEED)
             model.fit(X_tr, y_tr, eval_set=[(X_val, y_val)], early_stopping_rounds=50, verbose=False)
+
+            results = model.evals_result()
+            train_loss_history = results['validation_0']['rmse']
+            valid_loss_history = results['validation_1']['rmse']
+
             y_pred_scaled = model.predict(X_test).reshape(-1, 1)
 
         elif model_name in ['RF', 'SVM']:
@@ -79,6 +106,15 @@ def run_benchmark(path, target_column='AC_POWER', model_name='LSTM', loading_met
             model.fit(X_train, y_train.ravel())
             y_pred_scaled = model.predict(X_test).reshape(-1, 1)
 
+        if len(train_loss_history) > 0:
+            df_hist = pd.DataFrame({
+                'Fold': fold + 1,
+                'Epoch': range(1, len(train_loss_history) + 1),
+                'Train_Loss': train_loss_history,
+                'Valid_Loss': valid_loss_history
+            })
+            history_all_folds.append(df_hist)
+
         def inverse_y(y_s):
             n_samples = y_s.shape[0]
             n_cols = scaler.mean_.shape[0]
@@ -91,9 +127,17 @@ def run_benchmark(path, target_column='AC_POWER', model_name='LSTM', loading_met
 
         # Metrics
         y_pred = np.maximum(y_pred, 0)  # Physics check
-        m = calculate_metrics(y_true, y_pred)
-        for k, v in m.items(): metrics_hist[k].append(v)
-        print(f"Fold {fold + 1}: RMSE={m['RMSE']:.4f}")
+        metrics = calculate_metrics(y_true, y_pred)
+
+        # Add Fold number to metrics for CSV saving
+        metrics_with_fold = metrics.copy()
+        metrics_with_fold['Fold'] = fold + 1
+        fold_results_list.append(metrics_with_fold)
+
+        # Keep existing list for Summary calculation
+        for k, v in metrics.items(): metrics_hist[k].append(v)
+
+        print(f"Fold {fold + 1}: RMSE={metrics['RMSE']:.4f}")
 
     print(f"\n=== Final Results: {model_name} ({loading_method}) ===")
     for k in metrics_hist:

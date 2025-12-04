@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
@@ -10,6 +12,7 @@ def load_raw_data(file_path, target_col='AC_POWER'):
 
     try:
         df = pd.read_csv(file_path)
+        dataset_name = os.path.splitext(os.path.basename(file_path))[0]
     except FileNotFoundError:
         raise FileNotFoundError(f"File not found: {file_path}")
 
@@ -29,7 +32,7 @@ def load_raw_data(file_path, target_col='AC_POWER'):
     cols = [c for c in df.columns if c != target_col] + [target_col]
     df = df[cols]
 
-    return df.values.astype(np.float32), df.columns
+    return df.values.astype(np.float32), df.columns, dataset_name
 
 
 def create_lags(data, n_in=3):
