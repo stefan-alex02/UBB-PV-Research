@@ -3,7 +3,7 @@ import torch.nn as nn
 from skorch import NeuralNetRegressor
 from skorch.callbacks import EarlyStopping
 
-from config import device
+from config import device, epochs, batch_size, lr, patience
 
 
 class SampleANN(nn.Module):
@@ -40,7 +40,7 @@ class SampleLSTM(nn.Module):
 
 def get_skorch_model(model_type, input_shape):
     """Factory for Skorch Wrappers"""
-    early_stopping = EarlyStopping(monitor='valid_loss', patience=15, threshold=0.0001, lower_is_better=True)
+    early_stopping = EarlyStopping(monitor='valid_loss', patience=patience, threshold=0.0001, lower_is_better=True)
 
     if model_type == 'LSTM':
         n_features = input_shape[2]
@@ -48,9 +48,9 @@ def get_skorch_model(model_type, input_shape):
             module=SampleLSTM,
             module__num_inputs=n_features,
             module__hidden_units=64,
-            max_epochs=100,
-            lr=0.005,
-            batch_size=64,
+            max_epochs=epochs,
+            lr=lr,
+            batch_size=batch_size,
             optimizer=torch.optim.Adam,
             criterion=nn.MSELoss,
             device=device,
@@ -62,9 +62,9 @@ def get_skorch_model(model_type, input_shape):
         return NeuralNetRegressor(
             module=SampleANN,
             module__num_inputs=input_shape[1],
-            max_epochs=100,
-            lr=0.001,
-            batch_size=64,
+            max_epochs=epochs,
+            lr=lr,
+            batch_size=batch_size,
             optimizer=torch.optim.Adam,
             criterion=nn.MSELoss,
             device=device,
