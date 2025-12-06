@@ -32,6 +32,9 @@ def load_raw_data(file_path, target_col='AC_POWER'):
     feature_cols = [c for c in df.columns if c != target_col]
     df = df[feature_cols + [target_col]]
 
+    cols_to_drop = ['Year', 'Minute', 'DewPointTemperature']
+    df = df.drop(columns=cols_to_drop, errors='ignore')
+
     return df, dataset_name
 
 

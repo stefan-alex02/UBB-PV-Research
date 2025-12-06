@@ -14,6 +14,7 @@ torch.manual_seed(SEED)
 
 # General data set config
 TIMESTAMP_NAMES = ['DATE_TIME', 'Timestamp']
+RESULTS_DIR = "results"
 
 ##################################################################
 
@@ -25,20 +26,17 @@ target_column = 'SolarGeneration'
 unisolar_site_key = 2
 
 # Data loading config
-loading_method = 'standard'  # 'standard', 'lagged', 'sequence'
-seq_len = 24  # For lagged and sequence methods
+# loading_method = 'standard'  # 'standard', 'lagged', 'sequence'
+# seq_len = 24  # For lagged and sequence methods
 val_size = 0.1 # For validation during training
 
 # Model config
-model_name = 'ANN'  # 'ANN', 'LSTM', 'RandomForest', 'SVR', 'XGBoost'
-trees = 1000 # 100 for RF
+# model_name = 'ANN'  # 'ANN', 'LSTM', 'RandomForest', 'SVR', 'XGBoost'
+# trees = 1000 # 100 for RF
 
 # Training config
 k_folds = 5
-epochs = 10 # 100 for ANN
-batch_size = 32
-lr = 0.001 # 0.005 for LSTM, 0.05 for XGBoost
 patience = 15
-
-# Results config
-RESULTS_DIR = "results"
+# epochs = 10 # 100 for ANN
+# batch_size = 32
+# lr = 0.001 # 0.005 for LSTM, 0.05 for XGBoost

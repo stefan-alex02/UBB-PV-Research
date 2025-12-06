@@ -145,7 +145,99 @@ def plot_summary_bar(summary_df, output_dir, show=False):
         plt.show()
     plt.close()
 
-dir = "results/Solar_Energy_Generation_CK2/ANN/20251205_003857"
+
+def plot_predictions_scatter(experiment_dir, show=False):
+    """
+    Plots Predicted vs Actual values.
+    Includes a 45-degree line (perfect prediction).
+    """
+    pred_path = os.path.join(experiment_dir, 'predictions.csv')
+    if not os.path.exists(pred_path):
+        return
+
+    df = pd.read_csv(pred_path)
+
+    # Create plot
+    plt.figure(figsize=(8, 8))
+
+    # 1. Plot the data points
+    # Using alpha (transparency) helps see density if points overlap
+    sns.scatterplot(data=df, x='Actual', y='Predicted',
+                    hue='Fold', palette='viridis', alpha=0.3, s=15)
+
+    # 2. Add the "Perfect Prediction" diagonal line
+    min_val = min(df['Actual'].min(), df['Predicted'].min())
+    max_val = max(df['Actual'].max(), df['Predicted'].max())
+    plt.plot([min_val, max_val], [min_val, max_val],
+             color='red', linestyle='--', linewidth=2, label='Perfect Fit')
+
+    plt.title("Predicted vs Actual Solar Generation")
+    plt.xlabel("Actual Power (kW)")
+    plt.ylabel("Predicted Power (kW)")
+    plt.legend()
+    plt.grid(True, linestyle='--', alpha=0.5)
+
+    # Save
+    save_path = os.path.join(experiment_dir, 'plot_scatter_pred_vs_actual.png')
+    plt.savefig(save_path)
+    print(f"Saved Scatter Plot: {save_path}")
+
+    if show:
+        plt.show()
+    plt.close()
+
+
+def plot_predictions_faceted(experiment_dir, show=False):
+    """
+    Creates a GRID of scatter plots (one per fold).
+    """
+    pred_path = os.path.join(experiment_dir, 'predictions.csv')
+    if not os.path.exists(pred_path):
+        print("No predictions.csv found.")
+        return
+
+    df = pd.read_csv(pred_path)
+
+    # 1. Determine Range for the diagonal line (Unified across all folds)
+    min_val = min(df['Actual'].min(), df['Predicted'].min())
+    max_val = max(df['Actual'].max(), df['Predicted'].max())
+
+    # 2. Create the FacetGrid
+    # col_wrap=3 means it will put 3 plots per row, then start a new row
+    g = sns.relplot(
+        data=df,
+        x='Actual', y='Predicted',
+        col='Fold', col_wrap=3,
+        kind='scatter',
+        height=4, aspect=1,
+        alpha=0.3, s=10,
+        color='#2b7bba'  # Consistent color
+    )
+
+    # 3. Add the Perfect Fit Diagonal Line to EVERY subplot
+    def plot_diagonal(x, y, **kwargs):
+        # Draw line from min to max
+        plt.plot([min_val, max_val], [min_val, max_val],
+                 color='red', linestyle='--', linewidth=1.5)
+
+    # Map the diagonal function to the grid
+    g.map(plot_diagonal, 'Actual', 'Predicted')
+
+    # 4. Cleanup titles and axis labels
+    g.fig.suptitle("Predicted vs Actual (Per Fold Analysis)", y=1.02, fontsize=16)
+    g.set_axis_labels("Actual Power (kW)", "Predicted Power (kW)")
+
+    # Save
+    save_path = os.path.join(experiment_dir, 'plot_scatter_faceted.png')
+    plt.savefig(save_path, bbox_inches='tight')  # bbox_inches ensures title isn't cut off
+    print(f"Saved Faceted Plot: {save_path}")
+
+    if show:
+        plt.show()
+    plt.close()
+
+
+dir = "results/Solar_Energy_Generation_CK2/ANN/20251207_000826"
 show_plots = True
 
 print(f"--- Analyzing: {dir} ---")
@@ -154,4 +246,6 @@ losses, folds, summary = load_experiment_data(dir)
 plot_training_losses(losses, dir, show=show_plots)
 plot_metrics_distributions(folds, dir, show=show_plots)
 plot_summary_bar(summary, dir, show=show_plots)
+plot_predictions_scatter(dir, show=show_plots)
+plot_predictions_faceted(dir, show=show_plots)
 print("Analysis Complete.\n")

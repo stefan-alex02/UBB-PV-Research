@@ -10,7 +10,7 @@ from sklearn.model_selection import KFold, train_test_split
 from sklearn.svm import SVR
 from xgboost import XGBRegressor
 
-from config import SEED, RESULTS_DIR, trees, lr, patience, val_size
+from config import SEED, RESULTS_DIR
 from data_proc import process_fold_data
 from models import get_skorch_model
 
@@ -33,7 +33,9 @@ def get_confidence_interval(data):
     return np.mean(data), h
 
 
-def run_benchmark(df, save_dir, model_name='LSTM', loading_method='sequence', seq_len=24, k_folds=5):
+def run_benchmark(df, save_dir, model_name='LSTM', loading_method='sequence', seq_len=24, k_folds=5,
+                  val_size=0.1, epochs=50, max_depth=6, n_estimators=100, batch_size=32, lr=0.01, patience=10,
+                  hidden_units=64, num_layers=2, dropout=0.2, bidirectional=False):
     """
     loading_method: 'standard', 'lagged', or 'sequence'
     """
@@ -41,6 +43,7 @@ def run_benchmark(df, save_dir, model_name='LSTM', loading_method='sequence', se
     # Storage for detailed logs
     history_all_folds = []  # To store epoch-wise loss for every fold
     fold_results_list = []  # To store metrics for every fold
+    predictions_all_folds = []
 
     kf = KFold(n_splits=k_folds, shuffle=False)
     metrics_hist = {'MAE': [], 'RMSE': [], 'NRMSE': [], 'MAPE': [], 'R2': []}
@@ -63,7 +66,8 @@ def run_benchmark(df, save_dir, model_name='LSTM', loading_method='sequence', se
         valid_loss_history = []
 
         if model_name in ['ANN', 'LSTM']:
-            model = get_skorch_model(model_name, X_train.shape)
+            model = get_skorch_model(model_name, X_train.shape, epochs, batch_size, lr, hidden_units, num_layers,
+                                     dropout, bidirectional)
             model.fit(X_train, y_train)
 
             train_loss_history = model.history_[:, 'train_loss']
@@ -78,8 +82,9 @@ def run_benchmark(df, save_dir, model_name='LSTM', loading_method='sequence', se
             # Internal Split for XGB Early Stopping
             X_tr, X_val, y_tr, y_val = train_test_split(X_train, y_train, test_size=val_size, random_state=SEED)
 
-            model = XGBRegressor(n_estimators=trees, learning_rate=lr, n_jobs=-1, random_state=SEED)
-            model.fit(X_tr, y_tr, eval_set=[(X_val, y_val)], early_stopping_rounds=patience, verbose=False)
+            model = XGBRegressor(max_depth=max_depth, n_estimators=n_estimators, learning_rate=lr, n_jobs=-1,
+                                 early_stopping_rounds=patience, random_state=SEED)
+            model.fit(X_tr, y_tr, eval_set=[(X_tr, y_tr), (X_val, y_val)], verbose=True)
 
             results = model.evals_result()
             train_loss_history = results['validation_0']['rmse']
@@ -93,7 +98,7 @@ def run_benchmark(df, save_dir, model_name='LSTM', loading_method='sequence', se
                 X_test = X_test.reshape(X_test.shape[0], -1)
 
             if model_name == 'RF':
-                model = RandomForestRegressor(n_estimators=trees, n_jobs=-1, random_state=SEED)
+                model = RandomForestRegressor(n_estimators=n_estimators, n_jobs=-1, random_state=SEED)
             else:
                 model = SVR(kernel='rbf', C=10)
 
@@ -111,6 +116,14 @@ def run_benchmark(df, save_dir, model_name='LSTM', loading_method='sequence', se
 
         y_true = scaler_y.inverse_transform(y_test)
         y_pred = scaler_y.inverse_transform(y_pred_scaled.reshape(-1, 1))
+
+        # Create a mini-dataframe for this fold
+        fold_preds = pd.DataFrame({
+            'Fold': fold + 1,
+            'Actual': y_true.flatten(),
+            'Predicted': y_pred.flatten()
+        })
+        predictions_all_folds.append(fold_preds)
 
         # Metrics
         y_pred = np.maximum(y_pred, 0)  # Physics check
@@ -132,6 +145,11 @@ def run_benchmark(df, save_dir, model_name='LSTM', loading_method='sequence', se
     if history_all_folds:
         df_history = pd.concat(history_all_folds, ignore_index=True)
         df_history.to_csv(os.path.join(save_dir, 'training_losses.csv'), index=False)
+
+    if predictions_all_folds:
+        df_preds = pd.concat(predictions_all_folds, ignore_index=True)
+        # Save as CSV (or .parquet for better compression if data is huge)
+        df_preds.to_csv(os.path.join(save_dir, 'predictions.csv'), index=False)
 
     summary_data = []
     print(f"\n=== Final Results: {model_name} ===")
