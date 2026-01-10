@@ -24,10 +24,10 @@ add_file_handler_to_logger(save_dir)
 
 df = loading_methods[dataset_type](parent_dir=results_dir, **dataset_cfg)
 
-df = drop_columns(df, dataset_cfg['cols_to_drop'])
 df = make_timestamp_index(df, dataset_cfg['timestamp_col'])
 df = add_time_features(df)
 df = fill_missing_values(df, dataset_cfg['target_col'])
+df = drop_columns(df, dataset_cfg['cols_to_drop'])
 df = move_target_col(df, dataset_cfg['target_col'])
 
 results: Results = Results()

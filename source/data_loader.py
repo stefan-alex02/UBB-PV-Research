@@ -62,7 +62,7 @@ def make_timestamp_index(df: DataFrame, timestamp_col: str) -> DataFrame:
     """
     Converts the timestamp column to datetime and sets it as the DataFrame index.
     """
-    df[timestamp_col] = pd.to_datetime(df[timestamp_col])
+    df[timestamp_col] = pd.to_datetime(df[timestamp_col], errors='coerce')
     df = df.sort_values(by=timestamp_col)
     df = df.set_index(timestamp_col)
     return df
