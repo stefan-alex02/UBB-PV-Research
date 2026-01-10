@@ -1,0 +1,56 @@
+general:
+  seed: 42
+  results_dir: '../results/'
+  data_analysis: true
+
+  selected_model: 'xgboost' # 'xgboost', 'lstm', 'ann'
+  selected_dataset_type: 'single_csv' # 'single_csv', 'merged_csvs'
+
+
+dataset:
+  single_csv:
+    name: 'private_au'
+    csv_path: '../data/private_au/Solar_Energy_Generation_CK2.csv'
+    target_col: 'SolarGeneration'
+    timestamp_col: 'Timestamp'
+    cols_to_drop: ['DewPointTemperature', 'Minute']
+
+  merged_csvs:
+    name: 'unisolar'
+    solar_path: '../data/unisolar/Solar_Energy_Generation.csv'
+    weather_path: '../data/unisolar/Weather_Data_reordered_all.csv'
+    target_col: 'SolarGeneration'
+    timestamp_col: 'Timestamp'
+    site_key_col: 'SiteKey'
+    campus_key_col: 'CampusKey'
+    cols_to_drop: []
+    site_key: 2
+
+
+methodology:
+  k_folds: 5
+  val_size: 0.1
+  processing_method: 'lagged' # 'standard', 'lagged', 'sequence'
+  seq_len: 24
+  patience: 15
+
+
+model:
+  xgboost: # compatible methods: 'standard', 'lagged'
+    n_estimators: 1000
+    max_depth: 6
+    lr: 0.05
+
+  lstm:
+    hidden_units: 64
+    module__num_layers: 2
+    module__dropout: 0.2
+    module__bidirectional: false
+    epochs: 100
+    batch_size: 64
+    lr: 0.001
+
+  ann: # compatible methods: 'standard', 'lagged'
+    epochs: 100
+    batch_size: 64
+    lr: 0.001
