@@ -23,7 +23,6 @@ save_dir = create_directory(results_dir, dataset_cfg['name'], model_name, timest
 add_file_handler_to_logger(save_dir)
 
 df = loading_methods[dataset_type](parent_dir=results_dir, **dataset_cfg)
-
 df = make_timestamp_index(df, dataset_cfg['timestamp_col'])
 df = add_time_features(df)
 df = fill_missing_values(df, dataset_cfg['target_col'])

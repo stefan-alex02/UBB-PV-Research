@@ -33,7 +33,7 @@ def process_fold_results(results: Results, fold: int, train_loss_history, valid_
 
     results.predictions_all_folds.append(create_fold_y_df(fold, y_true, y_pred))
 
-    # y_pred = np.maximum(y_pred, 0)  # todo: is this necessary?
+    y_pred = np.maximum(y_pred, 0)  # todo: SOME OF THE VALUES ARE CORRECTED BY THIS
     metrics = calculate_metrics(y_true, y_pred)
     results.fold_results_list.append({'Fold': fold + 1, **metrics})
     for k, v in metrics.items(): results.metrics_hist[k].append(v)

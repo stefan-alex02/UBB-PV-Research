@@ -14,6 +14,7 @@ class SampleANN(nn.Module):
         )
 
     def forward(self, X):
+        # todo suggestion: force non negative values (relu/softplus)
         return self.dense(X)
 
 
@@ -31,4 +32,5 @@ class SampleLSTM(nn.Module):
     def forward(self, x):
         out, _ = self.lstm(x)
         last_step_out = out[:, -1, :]
+        # todo suggestion: force non negative values (relu/softplus)
         return self.fc(last_step_out)

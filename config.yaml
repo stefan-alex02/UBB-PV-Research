@@ -42,7 +42,7 @@ model:
     lr: 0.05
 
   lstm:
-    hidden_units: 64
+    module__hidden_units: 64
     module__num_layers: 2
     module__dropout: 0.2
     module__bidirectional: false

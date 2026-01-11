@@ -27,20 +27,6 @@ name_to_model: dict = {
     ),
 }
 
-name_to_model: dict = {
-    'ann': lambda **kwargs: SkorchModelWrapper(
-        model=get_ann_model(**kwargs),
-    ),
-    'lstm': lambda **kwargs: SkorchModelWrapper(
-        model=get_lstm_model(**kwargs),
-    ),
-    'xgboost': lambda val_size, seed, device, **kwargs: XGBoostModelWrapper(
-        model=get_xgboost_model(seed=seed, device=device, **kwargs),
-        val_size=val_size,
-        seed=seed,
-        device=device,
-    ),
-}
 
 class ModelWrapper(ABC):
     def __init__(self):
@@ -115,18 +101,18 @@ def get_xgboost_model(max_depth, n_estimators, lr, patience, seed, device, **_):
     )
 
 
-def get_lstm_model(input_shape, epochs, batch_size, lr, hidden_units, num_layers, dropout, bidirectional, patience,
-                   val_size, device, **_):
+def get_lstm_model(input_shape, epochs, batch_size, lr, module__hidden_units, module__num_layers, module__dropout,
+                   module__bidirectional, patience, val_size, device, **_):
     early_stopping = get_early_stopping(patience)
 
     n_features = input_shape[2] # todo: might need to be changed based on processing method
     return NeuralNetRegressor(
         module=SampleLSTM,
         module__num_inputs=n_features,
-        module__hidden_units=hidden_units,
-        module__num_layers=num_layers,
-        module__dropout=dropout,
-        module__bidirectional=bidirectional,
+        module__hidden_units=module__hidden_units,
+        module__num_layers=module__num_layers,
+        module__dropout=module__dropout,
+        module__bidirectional=module__bidirectional,
         max_epochs=epochs,
         lr=lr,
         batch_size=batch_size,
