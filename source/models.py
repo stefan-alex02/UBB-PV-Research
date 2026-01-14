@@ -10,6 +10,7 @@ from skorch.callbacks import EarlyStopping
 from skorch.dataset import ValidSplit
 from xgboost import XGBRegressor
 
+from source.data_process import ProcessingMethod
 from source.modules import SampleLSTM, SampleANN
 
 name_to_model: dict = {
@@ -85,6 +86,52 @@ class XGBoostModelWrapper(ModelWrapper):
         return self.model.predict(X).reshape(-1, 1)
 
 
+class StackedModelWrapper(ModelWrapper):
+    def __init__(self, base_models: list[ModelWrapper], meta_model: ModelWrapper):
+        super().__init__()
+        self.base_models = base_models
+        self.meta_model = meta_model
+
+    def train(self, X_train, y_train):
+        # Train base models
+        base_model_predictions = []
+        for model in self.base_models:
+            model.train(X_train, y_train)
+            preds = model.predict(X_train)
+            base_model_predictions.append(preds)
+
+        # Stack predictions for meta-model training
+        stacked_X = torch.cat(base_model_predictions, dim=1)
+        self.meta_model.train(stacked_X, y_train)
+
+    def get_loss_histories(self) -> tuple[Any, Any]:
+        # Combine loss histories from base models and meta model
+        all_train_losses = []
+        all_valid_losses = []
+
+        for model in self.base_models:
+            train_losses, valid_losses = model.get_loss_histories()
+            all_train_losses.append(train_losses)
+            all_valid_losses.append(valid_losses)
+
+        meta_train_losses, meta_valid_losses = self.meta_model.get_loss_histories()
+        all_train_losses.append(meta_train_losses)
+        all_valid_losses.append(meta_valid_losses)
+
+        return all_train_losses, all_valid_losses
+
+    def predict(self, X):
+        # Get predictions from base models
+        base_model_predictions = []
+        for model in self.base_models:
+            preds = model.predict(X)
+            base_model_predictions.append(preds)
+
+        # Stack predictions for meta-model prediction
+        stacked_X = torch.cat(base_model_predictions, dim=1)
+        return self.meta_model.predict(stacked_X)
+
+
 def get_early_stopping(patience):
     return EarlyStopping(monitor='valid_loss', patience=patience, threshold=0.0001, lower_is_better=True)
 
@@ -99,12 +146,17 @@ def get_xgboost_model(max_depth, n_estimators, lr, patience, seed, device, **_):
         random_state=seed,
         # device=device # todo: enable support for gpu training
     )
+    # todo suggestion: force non negative values (relu/softplus)
 
 
-def get_lstm_model(input_shape, epochs, batch_size, lr, module__hidden_units, module__num_layers, module__dropout,
-                   module__bidirectional, patience, val_size, device, **_):
+def get_lstm_model(processing_method: str, input_shape, epochs, batch_size, lr, module__hidden_units, module__num_layers,
+                   module__dropout, module__bidirectional, patience, val_size, device, **_):
     early_stopping = get_early_stopping(patience)
 
+    processing_method = processing_method if isinstance(processing_method, ProcessingMethod) else ProcessingMethod(processing_method)
+
+    if processing_method == ProcessingMethod.WINDOW:
+        n_features = input_shape[2]
     n_features = input_shape[2] # todo: might need to be changed based on processing method
     return NeuralNetRegressor(
         module=SampleLSTM,

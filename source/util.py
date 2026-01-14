@@ -79,6 +79,12 @@ def load_config(config_path):
         return yaml.safe_load(f)
 
 
+def save_config(config: dict, save_path: str):
+    with open(save_path, 'w') as f:
+        yaml.dump(config, f)
+    logger.info(f"Configuration saved to {save_path}")
+
+
 def create_directory(parent_dir: str, *subdirs: str, timestamped: bool = False) -> str:
     save_dir = Path(parent_dir).joinpath(*subdirs)
     if timestamped:

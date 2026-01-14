@@ -2,7 +2,7 @@ import torch.nn as nn
 
 
 class SampleANN(nn.Module):
-    def __init__(self, num_inputs, num_units, dropout):
+    def __init__(self, num_inputs: int, num_units: int, dropout: float):
         super(SampleANN, self).__init__()
         self.dense = nn.Sequential(
             nn.Linear(num_inputs, num_units),
@@ -19,7 +19,7 @@ class SampleANN(nn.Module):
 
 
 class SampleLSTM(nn.Module):
-    def __init__(self, num_inputs, hidden_units=50, num_layers=2, dropout=0.2, bidirectional=False):
+    def __init__(self, num_inputs: int, hidden_units: int, num_layers: int, dropout: float, bidirectional: bool):
         super(SampleLSTM, self).__init__()
         self.num_layers = num_layers
         self.hidden_units = hidden_units

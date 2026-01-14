@@ -30,9 +30,10 @@ dataset:
 methodology:
   k_folds: 5
   val_size: 0.1
-  processing_method: 'lagged' # 'standard', 'lagged', 'sequence'
+  processing_method: 'lagged' # 'standard', 'lagged', 'window'
   seq_len: 24
   patience: 15
+  shuffle_after_process: false
 
 
 model:
@@ -41,7 +42,7 @@ model:
     max_depth: 6
     lr: 0.05
 
-  lstm:
+  lstm: # compatible methods: 'lagged', 'window'
     module__hidden_units: 64
     module__num_layers: 2
     module__dropout: 0.2

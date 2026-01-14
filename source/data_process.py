@@ -7,20 +7,26 @@ from sklearn.preprocessing import StandardScaler
 
 
 class ProcessingMethod(Enum):
-    STANDARD = 'standard'
+    STANDARD = 'standard' # todo: this is equivalent to 'lagged' with seq_len=0, consider removing this
     LAGGED = 'lagged'
-    SEQUENCE = 'sequence'
+    WINDOW = 'window'
 
 
 def split_and_process_folds(df: DataFrame, k_folds: int,
-                            method: ProcessingMethod | str, seq_len: int):
+                            method: ProcessingMethod | str, seq_len: int,
+                            shuffle_after_process: bool = False):
     """
     Generator that yields processed data for each fold.
+    :param df: Input DataFrame
+    :param k_folds: Number of folds for K-Fold CV
+    :param method: Processing method to use (standard, lagged, window)
+    :param seq_len: Sequence length for lagged/window methods
+    :param shuffle_after_process: Whether to shuffle the data after processing (useful for non-standard methods)
     :return: fold index, X_train, y_train, X_test, y_test, scaler_y
     """
 
     method = method if isinstance(method, ProcessingMethod) else ProcessingMethod(method)
-    kf = KFold(n_splits=k_folds, shuffle=False)
+    kf = KFold(n_splits=k_folds, shuffle=False) # todo: consider data leakage issues
 
     # todo handle k fold == 1 case
     for fold, (train_idx, test_idx) in enumerate(kf.split(df)):
@@ -33,6 +39,9 @@ def split_and_process_folds(df: DataFrame, k_folds: int,
             method=method,
             seq_len=seq_len
         )
+
+        if shuffle_after_process:
+            X_train, y_train = shuffle_data(X_train, y_train)
 
         yield fold, X_train, y_train, X_test, y_test, scaler_y
 
@@ -77,7 +86,7 @@ def process_fold_data(X_train_raw, X_test_raw, method: ProcessingMethod, seq_len
         X_test, y_test = test_lagged[:, :-1], test_lagged[:, -1:]
         return X_train, y_train, X_test, y_test, scaler_X, scaler_y
 
-    elif method == ProcessingMethod.SEQUENCE:
+    elif method == ProcessingMethod.WINDOW:
         X_train, y_train = create_sequences(train_combined, seq_len)
         X_test, y_test = create_sequences(test_combined, seq_len)
         return X_train, y_train, X_test, y_test, scaler_X, scaler_y
@@ -113,3 +122,16 @@ def create_sequences(data, seq_len=24):
         y.append(data[i + seq_len, -1])
 
     return np.array(X), np.array(y).reshape(-1, 1)
+
+
+def shuffle_data(X, y):
+    """
+    Shuffles X and y along the first axis, regardless of their dimensions.
+    :param X: 2D or 3D array of shape (N, ...) where N is the number of samples
+    :param y: 2D array of shape (N, 1) or (N,)
+    :return: Shuffled X and y
+    """
+    assert len(X) == len(y), "X and y lengths must match."
+    indices = np.arange(len(X))
+    np.random.shuffle(indices)
+    return X[indices], y[indices]

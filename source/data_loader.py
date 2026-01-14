@@ -97,3 +97,9 @@ def move_target_col(df: DataFrame, target_col: str) -> DataFrame:
     """
     feature_cols = [c for c in df.columns if c != target_col]
     return df[feature_cols + [target_col]]
+
+def get_num_features(df: DataFrame) -> int:
+    """
+    Returns the number of feature columns in the DataFrame (excluding the target column).
+    """
+    return len(df.columns) - 1  # Exclude target column
