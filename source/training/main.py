@@ -1,11 +1,11 @@
 import os
 
-from source.data_loader import drop_columns, make_timestamp_index, add_time_features, \
+from source.training.data_loader import drop_columns, make_timestamp_index, add_time_features, \
     fill_missing_values, move_target_col, loading_methods, get_num_features
-from source.data_process import split_and_process_folds
-from source.evaluation import process_fold_results, Results, save_results
-from source.models import ModelWrapper, name_to_model
-from source.util import load_config, setup_device, setup_seed, create_directory, logger, add_file_handler_to_logger, \
+from source.training.data_process import split_and_process_folds
+from source.training.evaluation import process_fold_results, Results, save_results
+from source.training.models import ModelWrapper, name_to_model
+from source.training.util import load_config, setup_device, setup_seed, create_directory, logger, add_file_handler_to_logger, \
     save_config
 
 device = setup_device()

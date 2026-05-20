@@ -10,8 +10,8 @@ from skorch.callbacks import EarlyStopping
 from skorch.dataset import ValidSplit
 from xgboost import XGBRegressor
 
-from source.data_process import ProcessingMethod
-from source.modules import SampleLSTM, SampleANN
+from source.training.data_process import ProcessingMethod
+from source.training.modules import SampleLSTM, SampleANN
 
 name_to_model: dict = {
     'ann': lambda **kwargs: SkorchModelWrapper(

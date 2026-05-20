@@ -3,7 +3,7 @@ import pandas as pd
 import scipy.stats as stats
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-from source.util import save_as_csv, save_as_parquet, logger
+from source.training.util import save_as_csv, save_as_parquet, logger
 
 
 class Results:
