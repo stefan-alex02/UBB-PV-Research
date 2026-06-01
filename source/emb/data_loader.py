@@ -1,7 +1,3 @@
-"""
-data_loader.py — Load, normalize, and window the PV dataset.
-"""
-
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler, MinMaxScaler

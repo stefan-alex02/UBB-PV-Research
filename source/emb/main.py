@@ -1,19 +1,9 @@
-"""
-main.py — PV Unsupervised Embedding Pipeline
-
-Usage
------
-    python main.py
-
-All configuration lives in config.py.
-"""
-
 import os
 import sys
 import time
 import numpy as np
 
-# ── Make project root importable ─────────────────────────────────────────────
+# Make project root importable
 sys.path.insert(0, os.path.dirname(__file__))
 
 import config
@@ -36,21 +26,21 @@ def main():
     print("  PV Energy Forecasting — Unsupervised Embedding Pipeline")
     print("=" * 70)
 
-    # ── 1. Load & normalise ───────────────────────────────────────────────────
+    # Load & normalise
     X, feature_names = load_and_preprocess(
         path=config.DATASET_PATH,
         timestamp_col=config.TIMESTAMP_COL,
         normalization=config.NORMALIZATION,
     )
 
-    # ── 2. Window ─────────────────────────────────────────────────────────────
+    # Window
     X_windows = build_windows(X, k=config.WINDOW_SIZE)
 
-    # ── 3. Embedding ──────────────────────────────────────────────────────────
+    # Embedding
     Z, embed_meta = get_embeddings(X_windows, method=config.EMBEDDING_METHOD)
     print(f"\n[Embedding] Output shape: {Z.shape}")
 
-    # ── 4. Clustering ─────────────────────────────────────────────────────────
+    # Clustering
     clustering_results = run_clustering(
         Z,
         method           = config.CLUSTERING_METHOD,
@@ -63,7 +53,7 @@ def main():
         random_seed      = config.RANDOM_SEED,
     )
 
-    # ── 5. Analysis ───────────────────────────────────────────────────────────
+    # Analysis
     print(f"\n{'='*70}")
     print("  Qualitative / Quantitative Analysis")
     print(f"{'='*70}")
@@ -90,7 +80,7 @@ def main():
 
     compare_clusterings(clustering_results)
 
-    # ── 6. Save results ───────────────────────────────────────────────────────
+    # Save results
     # Build a serialisable config snapshot
     config_dict = {k: getattr(config, k) for k in dir(config) if not k.startswith("_")}
 
