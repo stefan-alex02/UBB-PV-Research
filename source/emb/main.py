@@ -19,6 +19,9 @@ from analysis     import (
 
 
 def main():
+    import torch
+    print(torch.cuda.get_device_name(0))
+
     t0 = time.time()
     rng = np.random.default_rng(config.RANDOM_SEED)
 
@@ -82,7 +85,10 @@ def main():
 
     # Save results
     # Build a serialisable config snapshot
-    config_dict = {k: getattr(config, k) for k in dir(config) if not k.startswith("_")}
+    config_dict = {cfg: getattr(config, cfg) for cfg in dir(config) if not cfg.startswith("_")}
+
+    # build the per-window feature name list and pass it in
+    window_feature_names = [f"{feat}_t-{config.WINDOW_SIZE - 1 - i}" for i in range(config.WINDOW_SIZE) for feat in feature_names]
 
     save_results(
         output_dir        = config.RESULTS_DIR,
@@ -91,6 +97,8 @@ def main():
         correlation_results= correlation_results,
         summaries         = summaries,
         config_dict       = config_dict,
+        embed_meta         = embed_meta,
+        window_feature_names = window_feature_names,
     )
 
     elapsed = time.time() - t0

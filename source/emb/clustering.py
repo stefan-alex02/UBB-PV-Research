@@ -67,6 +67,7 @@ def _run_kmeans(Z, k, init, max_iter, seed, metric_name):
     labels = km.fit_predict(Z)
     metrics = _compute_metrics(Z, labels, algorithm="kmeans")
     metrics["inertia"] = km.inertia_
+    metrics["n_clusters"] = k
     print(f"[K-Means] Inertia={km.inertia_:.4f}  |  {_fmt_metrics(metrics)}")
     return {"labels": labels, "metrics": metrics, "model": km}
 

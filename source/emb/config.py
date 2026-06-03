@@ -2,23 +2,23 @@
 Pipeline configuration. Edit this file to change hyperparameters and technique choices.
 """
 
-# ─── Dataset ──────────────────────────────────────────────────────────────────
-DATASET_PATH = "data/pv_dataset.csv"
+# Dataset
+DATASET_PATH = "../../data/private_au/Solar_Energy_Generation_CK2.csv"
 TIMESTAMP_COL = "Timestamp"          # Column to drop before processing
-RESULTS_DIR   = "results"
+RESULTS_DIR   = "results/ae/run2_higher_dbscan_eps"
 
-# ─── Windowing ────────────────────────────────────────────────────────────────
+# Windowing
 WINDOW_SIZE = 6   # k: number of consecutive rows per sample
 
-# ─── Normalization ────────────────────────────────────────────────────────────
+# Normalization
 # Options: "standard" (z-score), "minmax", "none"
 NORMALIZATION = "standard"
 
-# ─── Embedding ────────────────────────────────────────────────────────────────
+# Embedding
 # Options: "identity", "autoencoder", "univariate_fs", "random_forest_fs", "relieff"
 EMBEDDING_METHOD = "autoencoder"
 
-# --- Autoencoder settings (used when EMBEDDING_METHOD == "autoencoder") ---
+# Autoencoder settings (used when EMBEDDING_METHOD == "autoencoder") ---
 AE_LATENT_DIM    = 32       # Embedding dimension
 AE_HIDDEN_DIMS   = [256, 128, 64]  # Encoder hidden layer sizes (decoder mirrors this)
 AE_EPOCHS        = 50
@@ -35,7 +35,7 @@ RF_N_ESTIMATORS = 100
 # ReliefF
 RELIEFF_N_NEIGHBORS = 10
 
-# ─── Clustering ───────────────────────────────────────────────────────────────
+# Clustering
 # Options: "kmeans", "dbscan", "both"
 CLUSTERING_METHOD = "both"
 
@@ -45,20 +45,20 @@ KMEANS_INIT = "k-means++"   # "k-means++" or "random"
 KMEANS_MAX_ITER = 300
 
 # --- DBSCAN ---
-DBSCAN_EPS    = 0.5
+DBSCAN_EPS    = 3.
 DBSCAN_MIN_SAMPLES = 5
 
 # --- Distance metric for clustering analysis ---
 # Options: "euclidean", "mahalanobis"
 DISTANCE_METRIC = "euclidean"
 
-# ─── Analysis ─────────────────────────────────────────────────────────────────
+# Analysis
 # Options: "pearson", "spearman", "both"
 CORRELATION_METHOD = "both"
 
 # Number of pairs to sample for pairwise distance correlation (None = all, can be slow)
 ANALYSIS_SAMPLE_PAIRS = 5000
 
-# ─── Misc ─────────────────────────────────────────────────────────────────────
+# Misc
 RANDOM_SEED = 42
-DEVICE = "cpu"   # "cuda" or "cpu"
+DEVICE = "cuda"   # "cuda" or "cpu"

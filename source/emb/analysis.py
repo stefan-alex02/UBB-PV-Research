@@ -143,6 +143,8 @@ def save_results(
     correlation_results: list[dict],
     summaries: list[pd.DataFrame],
     config_dict: dict,
+    embed_meta=None,
+    window_feature_names=None,
 ) -> None:
     os.makedirs(output_dir, exist_ok=True)
 
@@ -179,5 +181,19 @@ def save_results(
     serialisable = {k: (v if not callable(v) else str(v)) for k, v in config_dict.items()}
     with open(cfg_path, "w") as f:
         json.dump(serialisable, f, indent=2)
+
+    if window_feature_names:
+        with open(os.path.join(output_dir, "window_feature_names.json"), "w") as f:
+            json.dump(window_feature_names, f)
+
+    if embed_meta:
+        serialisable_meta = {}
+        for k, v in embed_meta.items():
+            if isinstance(v, np.ndarray):
+                serialisable_meta[k] = v.tolist()
+            elif not callable(v) and not hasattr(v, 'parameters'):  # skip torch model
+                serialisable_meta[k] = v
+        with open(os.path.join(output_dir, "embed_meta.json"), "w") as f:
+            json.dump(serialisable_meta, f, indent=2)
 
     print(f"\n[Results] Saved '{output_dir}/'")

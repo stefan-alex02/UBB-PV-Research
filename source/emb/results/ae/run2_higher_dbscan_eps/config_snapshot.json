@@ -1,0 +1,32 @@
+{
+  "AE_BATCH_SIZE": 64,
+  "AE_DROPOUT": 0.1,
+  "AE_EPOCHS": 50,
+  "AE_HIDDEN_DIMS": [
+    256,
+    128,
+    64
+  ],
+  "AE_LATENT_DIM": 32,
+  "AE_LEARNING_RATE": 0.001,
+  "ANALYSIS_SAMPLE_PAIRS": 5000,
+  "CLUSTERING_METHOD": "both",
+  "CORRELATION_METHOD": "both",
+  "DATASET_PATH": "../../data/private_au/Solar_Energy_Generation_CK2.csv",
+  "DBSCAN_EPS": 3.0,
+  "DBSCAN_MIN_SAMPLES": 5,
+  "DEVICE": "cuda",
+  "DISTANCE_METRIC": "euclidean",
+  "EMBEDDING_METHOD": "autoencoder",
+  "FS_N_FEATURES": 32,
+  "KMEANS_INIT": "k-means++",
+  "KMEANS_K": 8,
+  "KMEANS_MAX_ITER": 300,
+  "NORMALIZATION": "standard",
+  "RANDOM_SEED": 42,
+  "RELIEFF_N_NEIGHBORS": 10,
+  "RESULTS_DIR": "results/ae/run2_higher_dbscan_eps",
+  "RF_N_ESTIMATORS": 100,
+  "TIMESTAMP_COL": "Timestamp",
+  "WINDOW_SIZE": 6
+}

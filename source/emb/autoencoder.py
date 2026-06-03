@@ -69,7 +69,10 @@ def train_autoencoder(
     dataset = TensorDataset(tensor_X)
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=False)
 
-    print(f"\n[Autoencoder] Architecture: {input_dim} → {hidden_dims} → {latent_dim} → {list(reversed(hidden_dims))} → {input_dim}")
+    # print(f"\n[Autoencoder] Architecture: {input_dim} -> {hidden_dims} -> {latent_dim} → {list(reversed(hidden_dims))} → {input_dim}")
+    print(f"\n[Autoencoder] Architecture:")
+    print(f"  Encoder: {input_dim} → {{{' → '.join(map(str, hidden_dims))}}} → {latent_dim}")
+    print(f"  Decoder: {latent_dim} → {{{' → '.join(map(str, reversed(hidden_dims)))}}} → {input_dim}")
     print(f"[Autoencoder] Parameters: {sum(p.numel() for p in model.parameters()):,}")
     print(f"[Autoencoder] Training for {epochs} epochs …")
 
