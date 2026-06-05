@@ -238,7 +238,7 @@ def plot_predictions_faceted(experiment_dir, show=False):
     plt.close()
 
 
-dir = "results/Solar_Energy_Generation_CK2/ANN/20251207_000826"
+dir = "results/Solar_Energy_Generation_CK2/XGBoost/20260102_141758"
 show_plots = True
 
 print(f"--- Analyzing: {dir} ---")

@@ -10,7 +10,7 @@ from source.training.util import load_config, setup_device, setup_seed, create_d
 
 device = setup_device()
 
-config = load_config("../config.yaml")
+config = load_config("config.yaml")
 
 seed = config['general']['seed']
 results_dir: str = config['general']['results_dir']

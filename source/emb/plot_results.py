@@ -1,5 +1,5 @@
 """
-plot_results.py — Visualise the outputs of the PV embedding pipeline.
+Visualise the outputs of the PV embedding pipeline.
 
 Usage
 -----
@@ -35,7 +35,6 @@ COLORMAP = "tab10"
 
 results_dir = "results/ae/run2_higher_dbscan_eps"
 
-# ─── Helpers ──────────────────────────────────────────────────────────────────
 
 def load_results(results_dir: str) -> dict:
     data = {"dir": results_dir}
@@ -93,8 +92,6 @@ def label_colors(labels, cmap=COLORMAP):
     return {lbl: ("lightgrey" if lbl == -1 else cm(i)) for i, lbl in enumerate(unique)}
 
 
-# ─── 1. PCA + t-SNE 2-D projections coloured by cluster ──────────────────────
-
 def plot_projections(d: dict):
     Z = d["Z"]
     labels_dict = d["labels"]
@@ -109,7 +106,7 @@ def plot_projections(d: dict):
     for alg, labels in labels_dict.items():
         fig, axes = plt.subplots(1, 2, figsize=(13, 5))
         fig.suptitle(
-            f"2-D Projections — embedding: {emb_method}, clustering: {alg.upper()}",
+            f"2-D Projections (embedding: {emb_method}, clustering: {alg.upper()})",
             fontsize=12, fontweight="bold"
         )
 
@@ -142,8 +139,6 @@ def plot_projections(d: dict):
         print(f"  Saved: {fpath}")
 
 
-# ─── 2. Cluster size distribution bar chart ───────────────────────────────────
-
 def plot_cluster_sizes(d: dict):
     summaries = d["summaries"]
     alg_names = list(d["labels"].keys())   # preserves insertion order
@@ -172,7 +167,7 @@ def plot_cluster_sizes(d: dict):
                     color=top_colors, edgecolor="white")
             ax.set_xlabel("Number of samples")
             ax.set_ylabel("Cluster")
-            ax.set_title(f"Cluster sizes (top 20) — {alg.upper()}\n"
+            ax.set_title(f"Cluster sizes (top 20) for {alg.upper()}\n"
                          f"Total clusters: {n_clusters}  |  "
                          f"Noise: {int(df.loc[df['cluster']==-1,'size'].sum()) if -1 in df['cluster'].values else 0}",
                          fontweight="bold")
@@ -182,7 +177,7 @@ def plot_cluster_sizes(d: dict):
             ax.bar_label(bars, fmt="%d", fontsize=8)
             ax.set_xlabel("Cluster")
             ax.set_ylabel("Number of samples")
-            ax.set_title(f"Cluster sizes — {alg.upper()}", fontweight="bold")
+            ax.set_title(f"Cluster sizes for {alg.upper()}", fontweight="bold")
 
     plt.tight_layout()
     fpath = out(d["dir"], "cluster_sizes.png")
@@ -190,8 +185,6 @@ def plot_cluster_sizes(d: dict):
     plt.close()
     print(f"  Saved: {fpath}")
 
-
-# ─── 3. Silhouette plot per sample ────────────────────────────────────────────
 
 def plot_silhouette(d: dict):
     Z = d["Z"]
@@ -227,7 +220,7 @@ def plot_silhouette(d: dict):
         ax.set_yticks(yticks)
         ax.set_yticklabels(yticklabels, fontsize=8)
         ax.set_xlabel("Silhouette coefficient")
-        ax.set_title(f"Silhouette analysis — {alg.upper()}", fontweight="bold")
+        ax.set_title(f"Silhouette analysis ({alg.upper()})", fontweight="bold")
         ax.legend()
 
         plt.tight_layout()
@@ -236,8 +229,6 @@ def plot_silhouette(d: dict):
         plt.close()
         print(f"  Saved: {fpath}")
 
-
-# ─── 4. Cluster quality metrics bar chart ─────────────────────────────────────
 
 def plot_cluster_metrics(d: dict):
     df = d["cluster_metrics"]
@@ -271,8 +262,6 @@ def plot_cluster_metrics(d: dict):
     print(f"  Saved: {fpath}")
 
 
-# ─── 5. Intra vs inter cluster distance distributions ─────────────────────────
-
 def plot_distance_distributions(d: dict, n_pairs: int = 4000, seed: int = 42):
     Z = d["Z"]
     rng = np.random.default_rng(seed)
@@ -295,7 +284,7 @@ def plot_distance_distributions(d: dict, n_pairs: int = 4000, seed: int = 42):
         ax.hist(dists[~same], bins=60, alpha=0.65, label="Inter-cluster",  color="#DD8452", density=True)
         ax.set_xlabel("Euclidean distance in embedding space")
         ax.set_ylabel("Density")
-        ax.set_title(f"Distance distribution — {alg.upper()}", fontweight="bold")
+        ax.set_title(f"Distance distribution ({alg.upper()})", fontweight="bold")
         ax.legend()
 
         plt.tight_layout()
@@ -304,8 +293,6 @@ def plot_distance_distributions(d: dict, n_pairs: int = 4000, seed: int = 42):
         plt.close()
         print(f"  Saved: {fpath}")
 
-
-# ─── 6. Correlation scatter: embedding distance vs same-cluster indicator ─────
 
 def plot_correlation_summary(d: dict):
     corr_list = d["correlation"]
@@ -348,8 +335,6 @@ def plot_correlation_summary(d: dict):
     print(f"  Saved: {fpath}")
 
 
-# ─── 7. Feature importance (for FS-based embedding methods) ───────────────────
-
 def plot_feature_importance(d: dict):
     meta = d.get("embed_meta", {})
     method = meta.get("method", d["config"].get("EMBEDDING_METHOD", ""))
@@ -388,8 +373,6 @@ def plot_feature_importance(d: dict):
     print(f"  Saved: {fpath}")
 
 
-# ─── 8. Embedding dimension statistics (mean ± std per dimension) ─────────────
-
 def plot_embedding_stats(d: dict):
     Z = d["Z"]
     means = Z.mean(axis=0)
@@ -414,8 +397,6 @@ def plot_embedding_stats(d: dict):
     print(f"  Saved: {fpath}")
 
 
-# ─── 9. Embedding correlation heatmap ─────────────────────────────────────────
-
 def plot_embedding_correlation(d: dict):
     Z = d["Z"]
     if Z.shape[1] > 64:
@@ -437,8 +418,6 @@ def plot_embedding_correlation(d: dict):
     plt.close()
     print(f"  Saved: {fpath}")
 
-
-# ─── 10. Summary statistics table ─────────────────────────────────────────────
 
 def print_summary_table(d: dict):
     cfg = d["config"]

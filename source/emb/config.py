@@ -5,7 +5,7 @@ Pipeline configuration. Edit this file to change hyperparameters and technique c
 # Dataset
 DATASET_PATH = "../../data/private_au/Solar_Energy_Generation_CK2.csv"
 TIMESTAMP_COL = "Timestamp"          # Column to drop before processing
-RESULTS_DIR   = "results/ae/run2_higher_dbscan_eps"
+RESULTS_DIR   = "results/identity/run1"
 
 # Windowing
 WINDOW_SIZE = 6   # k: number of consecutive rows per sample
@@ -16,7 +16,7 @@ NORMALIZATION = "standard"
 
 # Embedding
 # Options: "identity", "autoencoder", "univariate_fs", "random_forest_fs", "relieff"
-EMBEDDING_METHOD = "autoencoder"
+EMBEDDING_METHOD = "identity"
 
 # Autoencoder settings (used when EMBEDDING_METHOD == "autoencoder") ---
 AE_LATENT_DIM    = 32       # Embedding dimension
