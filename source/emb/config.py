@@ -8,10 +8,10 @@ TIMESTAMP_COL = "Timestamp"          # Column to drop before processing
 RESULTS_DIR   = "results/identity/run1"
 
 # Windowing
-WINDOW_SIZE = 6   # k: number of consecutive rows per sample
+WINDOW_SIZE = 6   # k+1: number of consecutive rows per sample
 
 # Normalization
-# Options: "standard" (z-score), "minmax", "none"
+# Options: "standard", "minmax", "none"
 NORMALIZATION = "standard"
 
 # Embedding

@@ -18,16 +18,18 @@ from analysis     import (
 )
 
 
-def main():
+def check_torch():
     import torch
     print(torch.cuda.get_device_name(0))
+
+
+def main():
+    check_torch()
 
     t0 = time.time()
     rng = np.random.default_rng(config.RANDOM_SEED)
 
-    print("=" * 70)
-    print("  PV Energy Forecasting — Unsupervised Embedding Pipeline")
-    print("=" * 70)
+    print("=== PV Energy Forecasting Embeddings ===\n")
 
     # Load & normalise
     X, feature_names = load_and_preprocess(
