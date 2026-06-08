@@ -58,7 +58,7 @@ def get_embeddings(X_windows: np.ndarray, method: str) -> tuple[np.ndarray, dict
 
 
 def _identity(X: np.ndarray) -> tuple[np.ndarray, dict]:
-    print(f"[Embedding] Identity: keeping all {X.shape[1]} dimensions.")
+    print(f"[Embedding] Identity: {X.shape[1]} → {X.shape[1]}")
     return X.copy(), {"method": "identity"}
 
 
@@ -100,9 +100,9 @@ def _univariate_fs(X: np.ndarray, k: int) -> tuple[np.ndarray, dict]:
     print(f"[Embedding] Univariate FS: {X.shape[1]} → {k} features selected.")
     print(f"            Top-5 feature indices by F-score: {np.argsort(scores)[::-1][:5].tolist()}")
     return X_sel.astype(np.float32), {
-        "method": "univariate_fs",
+        "method":           "univariate_fs",
         "selected_indices": selected_indices,
-        "scores": scores,
+        "scores":           scores,
     }
 
 

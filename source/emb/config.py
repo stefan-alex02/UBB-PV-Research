@@ -5,7 +5,7 @@ Pipeline configuration. Edit this file to change hyperparameters and technique c
 # Dataset
 DATASET_PATH = "../../data/private_au/Solar_Energy_Generation_CK2.csv"
 TIMESTAMP_COL = "Timestamp"          # Column to drop before processing
-RESULTS_DIR   = "results/identity/run1"
+RESULTS_DIR   = "results/random_forest_fs/run1"
 
 # Windowing
 WINDOW_SIZE = 6   # k+1: number of consecutive rows per sample
@@ -16,7 +16,7 @@ NORMALIZATION = "standard"
 
 # Embedding
 # Options: "identity", "autoencoder", "univariate_fs", "random_forest_fs", "relieff"
-EMBEDDING_METHOD = "identity"
+EMBEDDING_METHOD = "random_forest_fs"
 
 # Autoencoder settings (used when EMBEDDING_METHOD == "autoencoder") ---
 AE_LATENT_DIM    = 32       # Embedding dimension
@@ -61,4 +61,4 @@ ANALYSIS_SAMPLE_PAIRS = 5000
 
 # Misc
 RANDOM_SEED = 42
-DEVICE = "cuda"   # "cuda" or "cpu"
+DEVICE = "cpu"   # "cuda" or "cpu"

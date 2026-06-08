@@ -31,37 +31,29 @@ def main():
 
     print("=== PV Energy Forecasting Embeddings ===\n")
 
-    # Load & normalise
-    X, feature_names = load_and_preprocess(
+    X, feature_names = load_and_preprocess( # todo try with or without output column in the vector for emb (with historical output to predict step t+1, without historical output for predicting step t)
         path=config.DATASET_PATH,
         timestamp_col=config.TIMESTAMP_COL,
         normalization=config.NORMALIZATION,
     )
-
-    # Window
     X_windows = build_windows(X, k=config.WINDOW_SIZE)
 
-    # Embedding
     Z, embed_meta = get_embeddings(X_windows, method=config.EMBEDDING_METHOD)
     print(f"\n[Embedding] Output shape: {Z.shape}")
 
-    # Clustering
     clustering_results = run_clustering(
         Z,
-        method           = config.CLUSTERING_METHOD,
-        distance_metric  = config.DISTANCE_METRIC,
-        kmeans_k         = config.KMEANS_K,
-        kmeans_init      = config.KMEANS_INIT,
-        kmeans_max_iter  = config.KMEANS_MAX_ITER,
-        dbscan_eps       = config.DBSCAN_EPS,
+        method             = config.CLUSTERING_METHOD,
+        distance_metric    = config.DISTANCE_METRIC,
+        kmeans_k           = config.KMEANS_K,
+        kmeans_init        = config.KMEANS_INIT,
+        kmeans_max_iter    = config.KMEANS_MAX_ITER,
+        dbscan_eps         = config.DBSCAN_EPS,
         dbscan_min_samples = config.DBSCAN_MIN_SAMPLES,
-        random_seed      = config.RANDOM_SEED,
+        random_seed        = config.RANDOM_SEED,
     )
 
-    # Analysis
-    print(f"\n{'='*70}")
-    print("  Qualitative / Quantitative Analysis")
-    print(f"{'='*70}")
+    print("=== Analysis ===\n")
 
     correlation_results = []
     summaries = []
@@ -86,7 +78,6 @@ def main():
     compare_clusterings(clustering_results)
 
     # Save results
-    # Build a serialisable config snapshot
     config_dict = {cfg: getattr(config, cfg) for cfg in dir(config) if not cfg.startswith("_")}
 
     # build the per-window feature name list and pass it in
@@ -104,9 +95,7 @@ def main():
     )
 
     elapsed = time.time() - t0
-    print(f"\n{'='*70}")
-    print(f"  Pipeline complete in {elapsed:.1f}s")
-    print(f"{'='*70}")
+    print(f"=== Pipeline complete in {elapsed:.1f}s ===\n")
 
 
 if __name__ == "__main__":

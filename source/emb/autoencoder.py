@@ -61,7 +61,7 @@ def train_autoencoder(
     np.random.seed(random_seed)
 
     input_dim = X.shape[1]
-    model = Autoencoder(input_dim, latent_dim, hidden_dims, dropout).to(device)
+    model = Autoencoder(input_dim, latent_dim, hidden_dims, dropout).to(device) # todo regularisation
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     criterion = nn.MSELoss()
 
@@ -70,7 +70,7 @@ def train_autoencoder(
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=False)
 
     # print(f"\n[Autoencoder] Architecture: {input_dim} -> {hidden_dims} -> {latent_dim} → {list(reversed(hidden_dims))} → {input_dim}")
-    print(f"\n[Autoencoder] Architecture:")
+    print("\n[Autoencoder] Architecture:")
     print(f"  Encoder: {input_dim} → {{{' → '.join(map(str, hidden_dims))}}} → {latent_dim}")
     print(f"  Decoder: {latent_dim} → {{{' → '.join(map(str, reversed(hidden_dims)))}}} → {input_dim}")
     print(f"[Autoencoder] Parameters: {sum(p.numel() for p in model.parameters()):,}")
@@ -87,7 +87,7 @@ def train_autoencoder(
             loss.backward()
             optimizer.step()
             epoch_loss += loss.item() * len(batch)
-
+            # todo validation split
         epoch_loss /= len(X)
         if epoch % max(1, epochs // 10) == 0 or epoch == 1:
             print(f"  Epoch {epoch:4d}/{epochs}  MSE loss = {epoch_loss:.6f}")
