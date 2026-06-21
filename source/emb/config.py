@@ -29,7 +29,7 @@ EMBEDDING_METHOD = "autoencoder"
 # Autoencoder settings (used when EMBEDDING_METHOD == "autoencoder") ---
 AE_LATENT_DIM    = 32       # Embedding dimension
 AE_HIDDEN_DIMS   = [256, 128, 64]  # Encoder hidden layer sizes (decoder mirrors this)
-AE_EPOCHS        = 50 #50
+AE_EPOCHS        = 50
 AE_BATCH_SIZE    = 64
 AE_LEARNING_RATE = 1e-3
 AE_DROPOUT       = 0.1      # Dropout rate in encoder/decoder layers

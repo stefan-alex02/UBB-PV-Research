@@ -139,15 +139,17 @@ def _clean_labels(labels: np.ndarray) -> np.ndarray:
 
 # External (target-aware) intra/inter correlation
 
-def _corr(d: np.ndarray, dy: np.ndarray, method: str) -> float:
-    """Correlation between embedding distances d and target gaps dy."""
+def _corr(d: np.ndarray, dy: np.ndarray, method: str) -> tuple[float, float]:
+    """Correlation between embedding distances d and target gaps dy.
+       Returns (r, p). If computation not possible returns (nan, nan).
+    """
     if len(d) < 2 or np.std(d) == 0 or np.std(dy) == 0:
-        return float("nan")
+        return float("nan"), float("nan")
     if method == "pearson":
-        r, _ = stats.pearsonr(d, dy)
+        r, p = stats.pearsonr(d, dy)
     else:
-        r, _ = stats.spearmanr(d, dy)
-    return float(r)
+        r, p = stats.spearmanr(d, dy)
+    return float(r), float(p)
 
 
 def _sample_pairs_within(idx: np.ndarray, max_pairs: int | None, rng) -> tuple[np.ndarray, np.ndarray]:
@@ -208,7 +210,8 @@ def external_correlation_analysis(
     idx_by_cluster = {c: np.where(labels == c)[0] for c in clusters}
 
     # Intra
-    intra_pearson, intra_spearman = {}, {}
+    intra_pearson, intra_pearson_p = {}, {}
+    intra_spearman, intra_spearman_p = {}, {}
     for c in clusters:
         idx = idx_by_cluster[c]
         if len(idx) < 2:
@@ -218,29 +221,48 @@ def external_correlation_analysis(
             continue
         d  = np.linalg.norm(Z[a] - Z[b], axis=1)
         dy = np.abs(y[a] - y[b])
-        intra_pearson[c]  = _corr(d, dy, "pearson")
-        intra_spearman[c] = _corr(d, dy, "spearman")
+        r, p = _corr(d, dy, "pearson")
+        intra_pearson[c] = r
+        intra_pearson_p[c] = p
+        r2, p2 = _corr(d, dy, "spearman")
+        intra_spearman[c] = r2
+        intra_spearman_p[c] = p2
 
     # Inter
-    inter_pearson, inter_spearman = {}, {}
+    inter_pearson, inter_pearson_p = {}, {}
+    inter_spearman, inter_spearman_p = {}, {}
     for ci, cj in combinations(clusters, 2):
         a, b = _sample_pairs_between(idx_by_cluster[ci], idx_by_cluster[cj], max_pairs, rng)
         if len(a) < 2:
             continue
         d  = np.linalg.norm(Z[a] - Z[b], axis=1)
         dy = np.abs(y[a] - y[b])
-        inter_pearson[(ci, cj)]  = _corr(d, dy, "pearson")
-        inter_spearman[(ci, cj)] = _corr(d, dy, "spearman")
+        r, p = _corr(d, dy, "pearson")
+        inter_pearson[(ci, cj)] = r
+        inter_pearson_p[(ci, cj)] = p
+        r2, p2 = _corr(d, dy, "spearman")
+        inter_spearman[(ci, cj)] = r2
+        inter_spearman_p[(ci, cj)] = p2
 
     result = {
         "tag": tag,
         "n_clusters_used": len(clusters),
         "intra_corr_pearson_mean":  float(np.nanmean(list(intra_pearson.values())))  if intra_pearson  else float("nan"),
+        "intra_corr_pearson_mean_p": float(np.nanmean(list(intra_pearson_p.values()))) if intra_pearson_p else float("nan"),
         "intra_corr_spearman_mean": float(np.nanmean(list(intra_spearman.values()))) if intra_spearman else float("nan"),
+        "intra_corr_spearman_mean_p": float(np.nanmean(list(intra_spearman_p.values()))) if intra_spearman_p else float("nan"),
         "inter_corr_pearson_mean":  float(np.nanmean(list(inter_pearson.values())))  if inter_pearson  else float("nan"),
+        "inter_corr_pearson_mean_p": float(np.nanmean(list(inter_pearson_p.values()))) if inter_pearson_p else float("nan"),
         "inter_corr_spearman_mean": float(np.nanmean(list(inter_spearman.values()))) if inter_spearman else float("nan"),
+        "inter_corr_spearman_mean_p": float(np.nanmean(list(inter_spearman_p.values()))) if inter_spearman_p else float("nan"),
         "intra_per_cluster_pearson":  {int(k): v for k, v in intra_pearson.items()},
+        "intra_per_cluster_pearson_p": {int(k): v for k, v in intra_pearson_p.items()},
         "intra_per_cluster_spearman": {int(k): v for k, v in intra_spearman.items()},
+        "intra_per_cluster_spearman_p": {int(k): v for k, v in intra_spearman_p.items()},
+        # "inter_per_pair_pearson":  {str(k): v for k, v in inter_pearson.items()},
+        # "inter_per_pair_pearson_p": {str(k): v for k, v in inter_pearson_p.items()},
+        # "inter_per_pair_spearman": {str(k): v for k, v in inter_spearman.items()},
+        # "inter_per_pair_spearman_p": {str(k): v for k, v in inter_spearman_p.items()},
     }
 
     print(f"  [{tag}] External IntraCorr  Pearson={result['intra_corr_pearson_mean']:.4f}  "

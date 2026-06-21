@@ -179,11 +179,17 @@ def plot_cluster_sizes(d: dict):
             top_df = df.nlargest(20, "size")
             top_colors = [("lightgrey" if r["cluster"] == -1 else cmap(j % 10))
                           for j, (_, r) in enumerate(top_df.iterrows())]
-            ax.barh([str(c) for c in top_df["cluster"]], top_df["size"],
-                    color=top_colors, edgecolor="white")
+            # draw horizontal bars
+            bars = ax.barh([str(c) for c in top_df["cluster"]], top_df["size"],
+                            color=top_colors, edgecolor="white")
             ax.invert_yaxis()
             ax.set_xlabel("Number of samples")
             ax.set_ylabel("Cluster")
+            # Ensure there's a little space on the right for numeric labels
+            xmax = top_df["size"].max() if len(top_df) else 1
+            ax.set_xlim(0, xmax * 1.10)
+            # Label the bars with their counts (numbers placed to the right)
+            ax.bar_label(bars, fmt="%d", padding=4, fontsize=8)
             n_noise = int(df.loc[df["cluster"] == -1, "size"].sum()) if -1 in df["cluster"].values else 0
             ax.set_title(f"Cluster sizes (top 20) — {alg.upper()}\n"
                          f"Total clusters: {n_clusters}  |  Noise: {n_noise}",
