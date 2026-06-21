@@ -1,5 +1,5 @@
 """
-embeddings.py — All embedding / feature-extraction methods.
+All embedding / feature-extraction methods.
 
 Supported methods
 -----------------
@@ -18,6 +18,8 @@ from skrebate import ReliefF
 import config
 from autoencoder import train_autoencoder, get_autoencoder_embeddings
 
+
+# Public entry point
 
 def get_embeddings(X_windows: np.ndarray, method: str, y: np.ndarray = None) -> tuple[np.ndarray, dict]:
     """
@@ -59,6 +61,8 @@ def get_embeddings(X_windows: np.ndarray, method: str, y: np.ndarray = None) -> 
         )
 
 
+# Methods
+
 def _identity(X: np.ndarray) -> tuple[np.ndarray, dict]:
     print(f"[Embedding] Identity: keeping all {X.shape[1]} dimensions.")
     return X.copy(), {"method": "identity"}
@@ -77,6 +81,7 @@ def _autoencoder(X: np.ndarray) -> tuple[np.ndarray, dict]:
         random_seed=config.RANDOM_SEED,
         val_split=config.AE_VAL_SPLIT,
         weight_decay=config.AE_WEIGHT_DECAY,
+        auto_n_layers=config.AE_AUTO_N_LAYERS,
     )
     Z = get_autoencoder_embeddings(model, X, config.DEVICE)
     print(f"[Embedding] Autoencoder output dim: {Z.shape[1]}")

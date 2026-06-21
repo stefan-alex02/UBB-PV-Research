@@ -8,6 +8,33 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 
 
+def auto_hidden_dims(input_dim: int, latent_dim: int, n_layers: int = 2) -> list[int]:
+    """
+    Derive a monotonically-decreasing encoder funnel that scales with input_dim.
+
+    Layer sizes are spaced GEOMETRICALLY between input_dim and latent_dim, which is
+    standard practice for autoencoders (each layer compresses by a constant ratio
+    rather than making one big jump). The decoder mirrors these sizes.
+
+    Examples (latent_dim=32):
+        input=66,  n_layers=2 → [52, 41]
+        input=132, n_layers=2 → [82, 51]
+        input=264, n_layers=3 → [156, 92, 54]
+
+    If input_dim <= latent_dim (little/nothing to compress), returns a flat stack
+    at latent_dim so the model still trains without expanding.
+    """
+    if input_dim <= latent_dim:
+        return [latent_dim] * n_layers
+
+    ratio = (latent_dim / input_dim) ** (1.0 / (n_layers + 1))
+    dims, cur = [], input_dim
+    for _ in range(n_layers):
+        cur = max(int(round(cur * ratio)), latent_dim)
+        dims.append(cur)
+    return dims
+
+
 def _build_mlp(dims: list[int], dropout: float, activation=nn.ReLU) -> nn.Sequential:
     """Build a sequential MLP from a list of layer dimensions."""
     layers = []
@@ -56,24 +83,35 @@ def train_autoencoder(
     random_seed: int,
     val_split: float = 0.0,
     weight_decay: float = 0.0,
+    auto_n_layers: int = 2,
 ) -> tuple[Autoencoder, dict]:
     """
     Train an autoencoder on windowed data X.
 
     Parameters
     ----------
+    hidden_dims  : explicit encoder layer sizes, OR None/"auto" to derive a
+                   geometric funnel from input_dim via auto_hidden_dims().
+    auto_n_layers: number of hidden layers when hidden_dims is auto-derived.
     val_split    : fraction of X held out for validation (0 disables validation).
     weight_decay : L2 regularization strength passed to Adam.
 
     Returns
     -------
     model   : trained Autoencoder
-    history : dict with keys 'epoch', 'train_loss', 'val_loss' (val_loss empty if no split)
+    history : dict with keys 'epoch', 'train_loss', 'val_loss', 'hidden_dims'
     """
     torch.manual_seed(random_seed)
     np.random.seed(random_seed)
 
     input_dim = X.shape[1]
+
+    # Resolve architecture: auto-derive if hidden_dims is None or "auto".
+    if hidden_dims is None or hidden_dims == "auto":
+        hidden_dims = auto_hidden_dims(input_dim, latent_dim, auto_n_layers)
+        print(f"[Autoencoder] Auto-derived hidden dims (input={input_dim}, "
+              f"latent={latent_dim}, layers={auto_n_layers}): {hidden_dims}")
+
     model = Autoencoder(input_dim, latent_dim, hidden_dims, dropout).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     criterion = nn.MSELoss()
@@ -100,7 +138,7 @@ def train_autoencoder(
           f"|  weight_decay (L2): {weight_decay}")
     print(f"[Autoencoder] Training for {epochs} epochs …")
 
-    history = {"epoch": [], "train_loss": [], "val_loss": []}
+    history = {"epoch": [], "train_loss": [], "val_loss": [], "hidden_dims": list(hidden_dims)}
 
     for epoch in range(1, epochs + 1):
         # Train

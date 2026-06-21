@@ -35,6 +35,7 @@ COLORMAP = "tab10"
 
 results_dir = "results/ae/run2_higher_dbscan_eps"
 
+# Helpers
 
 def load_results(results_dir: str) -> dict:
     data = {"dir": results_dir}
@@ -154,34 +155,32 @@ def plot_projections(d: dict):
 
 # 2. Cluster size distribution bar chart
 
-def plot_cluster_sizes(d: dict):
-    summaries = d["summaries"]
-    # Source of truth for algorithm order: cluster_metrics.csv row order,
-    # which matches the cluster_summary_<i>.csv index order from save_results.
+def _alg_for_summary_index(d: dict, idx: int) -> str:
+    """Map a cluster_summary_<idx> to its algorithm name via cluster_metrics row order
+    (the authoritative order from save_results), not filesystem listing order."""
     alg_order = d["cluster_metrics"]["algorithm"].tolist()
-    n = len(summaries)
-    if n == 0:
+    return alg_order[idx] if idx < len(alg_order) else f"clustering_{idx}"
+
+
+def plot_cluster_sizes(d: dict):
+    """One standalone cluster-size figure per clustering method."""
+    summaries = d["summaries"]
+    if not summaries:
         return
 
-    fig, axes = plt.subplots(1, n, figsize=(6 * n, 4))
-    if n == 1:
-        axes = [axes]
-
-    # Iterate by integer summary index so alg name maps correctly
-    for ax, idx in zip(axes, sorted(summaries.keys(), key=lambda s: int(s))):
-        df = summaries[idx]
-        i = int(idx)
-        alg = alg_order[i] if i < len(alg_order) else f"clustering_{i}"
+    for idx_str in sorted(summaries.keys(), key=lambda s: int(s)):
+        df = summaries[idx_str]
+        alg = _alg_for_summary_index(d, int(idx_str))
         cmap = plt.get_cmap(COLORMAP, max(len(df), 2))
-
         n_clusters = len(df)
+
+        fig, ax = plt.subplots(figsize=(8, 4.5))
         if n_clusters > 15:
             top_df = df.nlargest(20, "size")
-            top_colors = [("lightgrey" if r["cluster"] == -1 else cmap(j % 10))
-                          for j, (_, r) in enumerate(top_df.iterrows())]
-            # draw horizontal bars
+            colors = ["lightgrey" if r["cluster"] == -1 else cmap(j % 10)
+                      for j, (_, r) in enumerate(top_df.iterrows())]
             bars = ax.barh([str(c) for c in top_df["cluster"]], top_df["size"],
-                            color=top_colors, edgecolor="white")
+                    color=colors, edgecolor="white")
             ax.invert_yaxis()
             ax.set_xlabel("Number of samples")
             ax.set_ylabel("Cluster")
@@ -192,8 +191,7 @@ def plot_cluster_sizes(d: dict):
             ax.bar_label(bars, fmt="%d", padding=4, fontsize=8)
             n_noise = int(df.loc[df["cluster"] == -1, "size"].sum()) if -1 in df["cluster"].values else 0
             ax.set_title(f"Cluster sizes (top 20) — {alg.upper()}\n"
-                         f"Total clusters: {n_clusters}  |  Noise: {n_noise}",
-                         fontweight="bold")
+                         f"Total clusters: {n_clusters}  |  Noise: {n_noise}", fontweight="bold")
         else:
             colors = ["lightgrey" if r["cluster"] == -1 else cmap(j % 10)
                       for j, (_, r) in enumerate(df.iterrows())]
@@ -204,11 +202,11 @@ def plot_cluster_sizes(d: dict):
             ax.set_ylabel("Number of samples")
             ax.set_title(f"Cluster sizes — {alg.upper()}", fontweight="bold")
 
-    plt.tight_layout()
-    fpath = out(d["dir"], "cluster_sizes.png")
-    plt.savefig(fpath, bbox_inches="tight")
-    plt.close()
-    print(f"  Saved: {fpath}")
+        plt.tight_layout()
+        fpath = out(d["dir"], f"cluster_sizes_{alg}.png")
+        plt.savefig(fpath, bbox_inches="tight")
+        plt.close()
+        print(f"  Saved: {fpath}")
 
 
 # 3. Silhouette plot per sample
@@ -260,35 +258,37 @@ def plot_silhouette(d: dict):
 # 4. Cluster quality metrics bar chart
 
 def plot_cluster_metrics(d: dict):
+    """One standalone metrics figure per clustering method."""
     df = d["cluster_metrics"]
     metric_cols = [c for c in ["silhouette", "davies_bouldin", "calinski_harabasz"]
                    if c in df.columns]
     if not metric_cols:
         return
 
-    fig, axes = plt.subplots(1, len(metric_cols), figsize=(5 * len(metric_cols), 4))
-    if len(metric_cols) == 1:
-        axes = [axes]
-
     notes = {
-        "silhouette":          "↑ higher is better  (−1 to 1)",
-        "davies_bouldin":      "↓ lower is better",
-        "calinski_harabasz":   "↑ higher is better",
+        "silhouette":        "↑ higher is better  (−1 to 1)",
+        "davies_bouldin":    "↓ lower is better",
+        "calinski_harabasz": "↑ higher is better",
     }
 
-    for ax, col in zip(axes, metric_cols):
-        vals = df[col].astype(float)
-        bars = ax.bar(df["algorithm"], vals,
-                      color=["#4C72B0", "#DD8452"][:len(df)], edgecolor="white")
-        ax.bar_label(bars, fmt="%.3f", fontsize=9)
-        ax.set_title(f"{col.replace('_', ' ').title()}\n{notes.get(col,'')}", fontweight="bold")
-        ax.set_ylabel(col)
-
-    plt.tight_layout()
-    fpath = out(d["dir"], "cluster_metrics.png")
-    plt.savefig(fpath, bbox_inches="tight")
-    plt.close()
-    print(f"  Saved: {fpath}")
+    for _, row in df.iterrows():
+        alg = row["algorithm"]
+        fig, axes = plt.subplots(1, len(metric_cols), figsize=(4 * len(metric_cols), 4))
+        if len(metric_cols) == 1:
+            axes = [axes]
+        for ax, col in zip(axes, metric_cols):
+            val = float(row[col])
+            bars = ax.bar([alg], [val], color="#4C72B0", edgecolor="white", width=0.5)
+            ax.bar_label(bars, fmt="%.3f", fontsize=10)
+            ax.set_title(f"{col.replace('_', ' ').title()}\n{notes.get(col,'')}",
+                         fontweight="bold", fontsize=10)
+            ax.set_ylabel(col)
+        fig.suptitle(f"Cluster quality metrics — {alg.upper()}", fontweight="bold")
+        plt.tight_layout()
+        fpath = out(d["dir"], f"cluster_metrics_{alg}.png")
+        plt.savefig(fpath, bbox_inches="tight")
+        plt.close()
+        print(f"  Saved: {fpath}")
 
 
 # 5. Intra vs inter cluster distance distributions
@@ -328,24 +328,10 @@ def plot_distance_distributions(d: dict, n_pairs: int = 4000, seed: int = 42):
 # 6. Correlation scatter: embedding distance vs same-cluster indicator
 
 def plot_correlation_summary(d: dict):
+    """One standalone internal-correlation figure per clustering method."""
     corr_list = d["correlation"]
     if not corr_list:
         return
-
-    rows = []
-    for r in corr_list:
-        row = {"algorithm": r.get("algorithm", r.get("tag", "?"))}
-        if "pearson_r"    in r: row["Pearson r"]   = r["pearson_r"]
-        if "spearman_rho" in r: row["Spearman ρ"]  = r["spearman_rho"]
-        if "intra_inter_ratio" in r: row["Intra/Inter ratio"] = r["intra_inter_ratio"]
-        rows.append(row)
-
-    df = pd.DataFrame(rows).set_index("algorithm")
-    metric_cols = [c for c in ["Pearson r", "Spearman ρ", "Intra/Inter ratio"] if c in df.columns]
-
-    fig, axes = plt.subplots(1, len(metric_cols), figsize=(5 * len(metric_cols), 4))
-    if len(metric_cols) == 1:
-        axes = [axes]
 
     notes = {
         "Pearson r":         "↓ more negative → distances reflect clusters better",
@@ -353,19 +339,32 @@ def plot_correlation_summary(d: dict):
         "Intra/Inter ratio": "↓ lower → more compact / separated clusters",
     }
 
-    for ax, col in zip(axes, metric_cols):
-        vals = df[col].astype(float)
-        bars = ax.bar(df.index, vals,
-                      color=["#4C72B0", "#DD8452"][:len(df)], edgecolor="white")
-        ax.bar_label(bars, fmt="%.4f", fontsize=9)
-        ax.axhline(0, color="black", linewidth=0.8, linestyle="--")
-        ax.set_title(f"{col}\n{notes.get(col,'')}", fontweight="bold")
+    for r in corr_list:
+        alg = r.get("algorithm", r.get("tag", "?"))
+        vals = {}
+        if "pearson_r"        in r: vals["Pearson r"]          = r["pearson_r"]
+        if "spearman_rho"     in r: vals["Spearman ρ"]         = r["spearman_rho"]
+        if "intra_inter_ratio"in r: vals["Intra/Inter ratio"]  = r["intra_inter_ratio"]
+        if not vals:
+            continue
 
-    plt.tight_layout()
-    fpath = out(d["dir"], "correlation_summary.png")
-    plt.savefig(fpath, bbox_inches="tight")
-    plt.close()
-    print(f"  Saved: {fpath}")
+        cols = list(vals.keys())
+        fig, axes = plt.subplots(1, len(cols), figsize=(4 * len(cols), 4))
+        if len(cols) == 1:
+            axes = [axes]
+        for ax, col in zip(axes, cols):
+            bars = ax.bar([alg], [float(vals[col])], color="#4C72B0",
+                          edgecolor="white", width=0.5)
+            ax.bar_label(bars, fmt="%.4f", fontsize=10)
+            ax.axhline(0, color="black", linewidth=0.8, linestyle="--")
+            ax.set_title(f"{col}\n{notes.get(col,'')}", fontweight="bold", fontsize=9)
+        fig.suptitle(f"Internal correlation (geometry vs cluster) — {alg.upper()}",
+                     fontweight="bold")
+        plt.tight_layout()
+        fpath = out(d["dir"], f"correlation_summary_{alg}.png")
+        plt.savefig(fpath, bbox_inches="tight")
+        plt.close()
+        print(f"  Saved: {fpath}")
 
 
 # 7. Feature importance (for FS-based embedding methods)
@@ -494,71 +493,63 @@ def plot_training_history(d: dict):
 # 11. External intra/inter correlation (target-aware)
 
 def plot_external_correlation(d: dict):
+    """One standalone external-correlation figure per clustering method."""
     ext = d.get("external")
     if not ext:
         return
 
-    rows = []
     for r in ext:
         alg = r.get("algorithm", r.get("tag", "?"))
-        rows.append({
-            "algorithm": alg,
-            "Intra (Pearson)": r.get("intra_corr_pearson_mean"),
-            "Inter (Pearson)": r.get("inter_corr_pearson_mean"),
-            "Intra (Spearman)": r.get("intra_corr_spearman_mean"),
-            "Inter (Spearman)": r.get("inter_corr_spearman_mean"),
-        })
-    df = pd.DataFrame(rows).set_index("algorithm")
+        groups = ["Intra", "Inter"]
+        pearson  = [r.get("intra_corr_pearson_mean"),  r.get("inter_corr_pearson_mean")]
+        spearman = [r.get("intra_corr_spearman_mean"), r.get("inter_corr_spearman_mean")]
 
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4.5), sharey=True)
-    for ax, corr_kind in zip(axes, ["Pearson", "Spearman"]):
-        sub = df[[f"Intra ({corr_kind})", f"Inter ({corr_kind})"]]
-        x = np.arange(len(sub))
+        x = np.arange(len(groups))
         w = 0.35
-        b1 = ax.bar(x - w/2, sub[f"Intra ({corr_kind})"], w,
-                    label="Intra-cluster", color="#4C72B0", edgecolor="white")
-        b2 = ax.bar(x + w/2, sub[f"Inter ({corr_kind})"], w,
-                    label="Inter-cluster", color="#DD8452", edgecolor="white")
+        fig, ax = plt.subplots(figsize=(7, 4.5))
+        b1 = ax.bar(x - w/2, pearson,  w, label="Pearson",  color="#4C72B0", edgecolor="white")
+        b2 = ax.bar(x + w/2, spearman, w, label="Spearman", color="#DD8452", edgecolor="white")
         ax.bar_label(b1, fmt="%.3f", fontsize=8)
         ax.bar_label(b2, fmt="%.3f", fontsize=8)
         ax.set_xticks(x)
-        ax.set_xticklabels(sub.index)
+        ax.set_xticklabels([f"{g}-cluster" for g in groups])
         ax.axhline(0, color="black", linewidth=0.8)
-        ax.set_title(f"External corr — {corr_kind}\n"
-                     f"corr(embedding dist, |Δy|), higher = geometry tracks target",
+        ax.set_ylabel("Correlation")
+        ax.set_title(f"External correlation — {alg.upper()}\n"
+                     f"corr(embedding dist, |Δy|); higher = geometry tracks target",
                      fontweight="bold", fontsize=10)
         ax.legend()
-    axes[0].set_ylabel("Correlation")
 
-    plt.tight_layout()
-    fpath = out(d["dir"], "external_correlation.png")
-    plt.savefig(fpath, bbox_inches="tight")
-    plt.close()
-    print(f"  Saved: {fpath}")
+        plt.tight_layout()
+        fpath = out(d["dir"], f"external_correlation_{alg}.png")
+        plt.savefig(fpath, bbox_inches="tight")
+        plt.close()
+        print(f"  Saved: {fpath}")
 
 
 # 12. Homogeneity score per algorithm
 
 def plot_homogeneity(d: dict):
+    """One standalone homogeneity figure per clustering method."""
     df = d["cluster_metrics"]
     if "homogeneity" not in df.columns:
         return
 
-    fig, ax = plt.subplots(figsize=(6, 4))
-    vals = df["homogeneity"].astype(float)
-    bars = ax.bar(df["algorithm"], vals,
-                  color=["#4C72B0", "#DD8452"][:len(df)], edgecolor="white")
-    ax.bar_label(bars, fmt="%.3f", fontsize=10)
-    ax.set_ylim(0, 1)
-    ax.set_ylabel("Homogeneity")
-    ax.set_title("Cluster homogeneity vs y-classes\n(↑ higher is better, range 0–1)",
-                 fontweight="bold")
-
-    plt.tight_layout()
-    fpath = out(d["dir"], "homogeneity.png")
-    plt.savefig(fpath, bbox_inches="tight")
-    plt.close()
-    print(f"  Saved: {fpath}")
+    for _, row in df.iterrows():
+        alg = row["algorithm"]
+        fig, ax = plt.subplots(figsize=(4.5, 4))
+        bars = ax.bar([alg], [float(row["homogeneity"])], color="#4C72B0",
+                      edgecolor="white", width=0.5)
+        ax.bar_label(bars, fmt="%.3f", fontsize=11)
+        ax.set_ylim(0, 1)
+        ax.set_ylabel("Homogeneity")
+        ax.set_title(f"Homogeneity vs y-classes — {alg.upper()}\n(↑ better, 0–1)",
+                     fontweight="bold", fontsize=10)
+        plt.tight_layout()
+        fpath = out(d["dir"], f"homogeneity_{alg}.png")
+        plt.savefig(fpath, bbox_inches="tight")
+        plt.close()
+        print(f"  Saved: {fpath}")
 
 
 # 13. Target distribution with class boundaries
@@ -675,3 +666,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    

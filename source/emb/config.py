@@ -3,7 +3,7 @@ Pipeline configuration. Edit this file to change hyperparameters and technique c
 """
 from datetime import datetime
 
-EXP_NAME = "test"
+EXP_NAME = "win6_kmeans8_latest_y"
 
 # Windowing
 WINDOW_SIZE = 6   # k: number of consecutive rows per sample
@@ -13,7 +13,7 @@ WINDOW_SIZE = 6   # k: number of consecutive rows per sample
 #                SolarGeneration of the NEXT timestep. Last window dropped. (forecasting)
 #   "latest_y" : window EXCLUDES SolarGeneration; target y is the SolarGeneration of
 #                the LATEST timestep in the window. No window sacrificed.
-WINDOWING_MODE = "next_y"
+WINDOWING_MODE = "latest_y"
 
 # Name of the target column (solar generation)
 TARGET_COL = "SolarGeneration"
@@ -26,9 +26,20 @@ NORMALIZATION = "standard"
 # Options: "identity", "autoencoder", "univariate_fs", "random_forest_fs", "relieff"
 EMBEDDING_METHOD = "autoencoder"
 
+# Whether to standardize (z-score) the EMBEDDING before clustering/analysis.
+# Autoencoder latent dims often have very different scales; standardizing prevents
+# high-variance dims from dominating Euclidean distance. Recommended: True.
+NORMALIZE_EMBEDDINGS = False
+
 # Autoencoder settings (used when EMBEDDING_METHOD == "autoencoder") ---
 AE_LATENT_DIM    = 32       # Embedding dimension
-AE_HIDDEN_DIMS   = [256, 128, 64]  # Encoder hidden layer sizes (decoder mirrors this)
+# Encoder hidden layer sizes (decoder mirrors this). Two options:
+#   - explicit list, e.g. [256, 128, 64]  (used as-is)
+#   - "auto"  → geometric funnel auto-derived from input dim & latent dim,
+#               scaling automatically with WINDOW_SIZE. Recommended.
+# AE_HIDDEN_DIMS   = "auto"
+AE_HIDDEN_DIMS   = [256, 128, 64]
+AE_AUTO_N_LAYERS = 2        # number of hidden layers when AE_HIDDEN_DIMS == "auto"
 AE_EPOCHS        = 50
 AE_BATCH_SIZE    = 64
 AE_LEARNING_RATE = 1e-3
@@ -46,8 +57,9 @@ RF_N_ESTIMATORS = 100
 RELIEFF_N_NEIGHBORS = 10
 
 # Clustering
-# Options: "kmeans", "dbscan", "both"
-CLUSTERING_METHOD = "both"
+# List any subset of: "kmeans", "dbscan", "agglomerative".
+# Each selected method is computed and evaluated independently.
+CLUSTERING_METHODS = ["kmeans", "dbscan"]
 
 # --- K-Means ---
 KMEANS_K = 8
@@ -57,6 +69,10 @@ KMEANS_MAX_ITER = 300
 # --- DBSCAN ---
 DBSCAN_EPS    = 3.
 DBSCAN_MIN_SAMPLES = 5
+
+# --- Agglomerative (hierarchical) ---
+AGG_N_CLUSTERS = 8
+AGG_LINKAGE    = "ward"   # "ward" (Euclidean only), "complete", "average", "single"
 
 # --- Distance metric for clustering analysis ---
 # Options: "euclidean", "mahalanobis"

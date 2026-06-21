@@ -1,0 +1,26 @@
+[
+  {
+    "tag": "kmeans",
+    "n_pairs": 5000,
+    "pearson_r": -0.6076715798147496,
+    "pearson_p": 0.0,
+    "spearman_rho": -0.6932185509301613,
+    "spearman_p": 0.0,
+    "intra_mean_dist": 5.599961757659912,
+    "inter_mean_dist": 12.018279075622559,
+    "intra_inter_ratio": 0.4659537076950073,
+    "algorithm": "kmeans"
+  },
+  {
+    "tag": "dbscan",
+    "n_pairs": 5000,
+    "pearson_r": -0.5004294077395646,
+    "pearson_p": 3.229887234e-315,
+    "spearman_rho": -0.35019595787401847,
+    "spearman_p": 3.2541742850536215e-144,
+    "intra_mean_dist": 8.432767868041992,
+    "inter_mean_dist": 18.489290237426758,
+    "intra_inter_ratio": 0.4560893177986145,
+    "algorithm": "dbscan"
+  }
+]

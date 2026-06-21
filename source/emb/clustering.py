@@ -1,41 +1,61 @@
 """
-K-Means and DBSCAN clustering with Euclidean or Mahalanobis distance.
+K-Means, DBSCAN, and Agglomerative clustering
+with Euclidean or Mahalanobis distance. Methods are selected via a configurable list.
 """
 
 import numpy as np
-from sklearn.cluster import KMeans, DBSCAN
+from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering
 from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score
 from sklearn.preprocessing import StandardScaler
 
 
 def run_clustering(
     Z: np.ndarray,
-    method: str,
+    methods: list[str],
     distance_metric: str,
-    kmeans_k: int,
-    kmeans_init: str,
-    kmeans_max_iter: int,
-    dbscan_eps: float,
-    dbscan_min_samples: int,
+    params: dict,
     random_seed: int,
 ) -> dict:
     """
-    Cluster the embedding matrix Z.
+    Cluster the embedding matrix Z with one or more algorithms.
+
+    Parameters
+    ----------
+    methods         : list of algorithm names, any of:
+                      "kmeans", "dbscan", "agglomerative".
+    distance_metric : "euclidean" or "mahalanobis" (applied via whitening).
+    params          : dict of algorithm hyperparameters (see config). Keys used:
+                      kmeans_k, kmeans_init, kmeans_max_iter,
+                      dbscan_eps, dbscan_min_samples,
+                      agg_n_clusters, agg_linkage.
 
     Returns
     -------
-    results : dict  {method_name: {"labels": np.ndarray, "metrics": dict}}
+    results : dict  {method_name: {"labels": np.ndarray, "metrics": dict, "model": ...}}
     """
-    print(f"\n[Clustering] Method: {method!r}  |  Distance: {distance_metric!r}  |  N={Z.shape[0]}")
+    print(f"\n[Clustering] Methods: {methods}  |  Distance: {distance_metric!r}  |  N={Z.shape[0]}")
 
     # Optionally transform to Mahalanobis space (whitening)
     Z_cluster = _prepare_metric_space(Z, distance_metric)
 
+    dispatch = {
+        "kmeans": lambda: _run_kmeans(
+            Z_cluster, params["kmeans_k"], params["kmeans_init"],
+            params["kmeans_max_iter"], random_seed, distance_metric),
+        "dbscan": lambda: _run_dbscan(
+            Z_cluster, params["dbscan_eps"], params["dbscan_min_samples"],
+            random_seed, distance_metric),
+        "agglomerative": lambda: _run_agglomerative(
+            Z_cluster, params["agg_n_clusters"], params["agg_linkage"],
+            distance_metric),
+    }
+
     results = {}
-    if method in ("kmeans", "both"):
-        results["kmeans"] = _run_kmeans(Z_cluster, kmeans_k, kmeans_init, kmeans_max_iter, random_seed, distance_metric)
-    if method in ("dbscan", "both"):
-        results["dbscan"] = _run_dbscan(Z_cluster, dbscan_eps, dbscan_min_samples, random_seed, distance_metric)
+    for m in methods:
+        if m not in dispatch:
+            raise ValueError(f"Unknown clustering method: {m!r}. "
+                             f"Choose from {list(dispatch.keys())}.")
+        results[m] = dispatch[m]()
 
     return results
 
@@ -84,6 +104,28 @@ def _run_dbscan(Z, eps, min_samples, seed, metric_name):
     metrics["n_noise"] = n_noise
     print(f"[DBSCAN] {_fmt_metrics(metrics)}")
     return {"labels": labels, "metrics": metrics, "model": db}
+
+
+def _run_agglomerative(Z, n_clusters, linkage, metric_name):
+    """
+    Hierarchical agglomerative clustering (bottom-up merging).
+
+    linkage: "ward" (minimizes within-cluster variance; requires Euclidean),
+             "complete", "average", or "single".
+
+    Note: O(n^2) memory. For very large N (>~50k) this can be heavy; if you hit
+    memory limits, cluster on a subsample or switch linkage.
+    """
+    print(f"[Agglomerative] n_clusters={n_clusters}, linkage={linkage!r} …")
+    if Z.shape[0] > 50000:
+        print(f"  [Warning] N={Z.shape[0]} is large for agglomerative clustering "
+              f"(O(n^2) memory). This may be slow or memory-heavy.")
+    agg = AgglomerativeClustering(n_clusters=n_clusters, linkage=linkage) # todo too spatially complex: O(n^2)
+    labels = agg.fit_predict(Z)
+    metrics = _compute_metrics(Z, labels, algorithm="agglomerative")
+    metrics["n_clusters"] = n_clusters
+    print(f"[Agglomerative] {_fmt_metrics(metrics)}")
+    return {"labels": labels, "metrics": metrics, "model": agg}
 
 
 def _compute_metrics(Z: np.ndarray, labels: np.ndarray, algorithm: str) -> dict:

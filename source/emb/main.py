@@ -1,7 +1,6 @@
 import os
 import sys
 import time
-
 import numpy as np
 
 # Make project root importable
@@ -56,6 +55,12 @@ def main():
     print(f"\n[Embedding] Output shape: {Z.shape}")
     ae_history = embed_meta.get("history")   # None for non-AE methods
 
+    # 3b. Optional embedding standardization
+    if config.NORMALIZE_EMBEDDINGS:
+        from sklearn.preprocessing import StandardScaler
+        Z = StandardScaler().fit_transform(Z).astype(np.float32)
+        print("[Embedding] Standardized (z-scored) embedding dimensions before clustering.")
+
     # Per-window feature names (for FS importance plots)
     if config.WINDOWING_MODE == "latest_y":
         feat_no_target = [c for c in feature_names if c != config.TARGET_COL]
@@ -66,16 +71,21 @@ def main():
                                 for i in range(config.WINDOW_SIZE) for f in feature_names]
 
     # 4. Clustering
+    cluster_params = {
+        "kmeans_k":          config.KMEANS_K,
+        "kmeans_init":       config.KMEANS_INIT,
+        "kmeans_max_iter":   config.KMEANS_MAX_ITER,
+        "dbscan_eps":        config.DBSCAN_EPS,
+        "dbscan_min_samples":config.DBSCAN_MIN_SAMPLES,
+        "agg_n_clusters":    config.AGG_N_CLUSTERS,
+        "agg_linkage":       config.AGG_LINKAGE,
+    }
     clustering_results = run_clustering(
         Z,
-        method           = config.CLUSTERING_METHOD,
-        distance_metric  = config.DISTANCE_METRIC,
-        kmeans_k         = config.KMEANS_K,
-        kmeans_init      = config.KMEANS_INIT,
-        kmeans_max_iter  = config.KMEANS_MAX_ITER,
-        dbscan_eps       = config.DBSCAN_EPS,
-        dbscan_min_samples = config.DBSCAN_MIN_SAMPLES,
-        random_seed      = config.RANDOM_SEED,
+        methods         = config.CLUSTERING_METHODS,
+        distance_metric = config.DISTANCE_METRIC,
+        params          = cluster_params,
+        random_seed     = config.RANDOM_SEED,
     )
 
     # 5. Analysis
