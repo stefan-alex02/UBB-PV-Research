@@ -44,10 +44,11 @@ def load_results(results_dir: str) -> dict:
     data["Z"] = np.load(path("embeddings.npy"))
 
     data["labels"] = {}
-    for fname in os.listdir(results_dir):
-        if fname.startswith("labels_") and fname.endswith(".npy"):
-            key = fname[len("labels_"):-len(".npy")]
-            data["labels"][key] = np.load(path(fname))
+    label_files = sorted(f for f in os.listdir(results_dir)
+                         if f.startswith("labels_") and f.endswith(".npy"))
+    for fname in label_files:
+        key = fname[len("labels_"):-len(".npy")]
+        data["labels"][key] = np.load(path(fname))
 
     data["cluster_metrics"] = pd.read_csv(path("cluster_metrics.csv"))
 
@@ -77,6 +78,24 @@ def load_results(results_dir: str) -> dict:
     else:
         data["window_feature_names"] = None
 
+    # New target-aware artifacts (optional)
+    def _opt_npy(name):
+        p = path(name)
+        return np.load(p) if os.path.exists(p) else None
+
+    def _opt_json(name):
+        p = path(name)
+        if os.path.exists(p):
+            with open(p) as f:
+                return json.load(f)
+        return None
+
+    data["y"]            = _opt_npy("y_targets.npy")
+    data["y_classes"]    = _opt_npy("y_classes.npy")
+    data["class_info"]   = _opt_json("y_class_info.json")
+    data["external"]     = _opt_json("external_correlation_analysis.json")
+    data["ae_history"]   = _opt_json("ae_training_history.json")
+
     return data
 
 
@@ -92,6 +111,8 @@ def label_colors(labels, cmap=COLORMAP):
     return {lbl: ("lightgrey" if lbl == -1 else cm(i)) for i, lbl in enumerate(unique)}
 
 
+# 1. PCA + t-SNE 2-D projections coloured by cluster
+
 def plot_projections(d: dict):
     Z = d["Z"]
     labels_dict = d["labels"]
@@ -106,7 +127,7 @@ def plot_projections(d: dict):
     for alg, labels in labels_dict.items():
         fig, axes = plt.subplots(1, 2, figsize=(13, 5))
         fig.suptitle(
-            f"2-D Projections (embedding: {emb_method}, clustering: {alg.upper()})",
+            f"2-D Projections — embedding: {emb_method}, clustering: {alg.upper()}",
             fontsize=12, fontweight="bold"
         )
 
@@ -117,20 +138,12 @@ def plot_projections(d: dict):
             ax.set_title(title)
             ax.set_xlabel("Component 1")
             ax.set_ylabel("Component 2")
-
-            unique_labels = sorted(set(labels))
-            if len(unique_labels) <= 20:
-                legend_els = [
-                    Patch(color=cmap[l], label="Noise" if l == -1 else f"C{l}")
-                    for l in unique_labels
-                ]
-                ax.legend(handles=legend_els, fontsize=7, markerscale=1.5,
-                          ncol=max(1, len(legend_els) // 10), loc="best")
-            else:
-                # Too many clusters to label individually — just note the count
-                n_noise = (labels == -1).sum()
-                ax.set_xlabel(f"Component 1  ({len(unique_labels) - 1} clusters, "
-                              f"{n_noise} noise pts)")
+            legend_els = [
+                Patch(color=cmap[l], label="Noise" if l == -1 else f"C{l}")
+                for l in sorted(set(labels))
+            ]
+            ax.legend(handles=legend_els, fontsize=7, markerscale=1.5,
+                      ncol=max(1, len(legend_els) // 10), loc="best")
 
         plt.tight_layout()
         fpath = out(d["dir"], f"projections_{alg}.png")
@@ -139,9 +152,13 @@ def plot_projections(d: dict):
         print(f"  Saved: {fpath}")
 
 
+# 2. Cluster size distribution bar chart
+
 def plot_cluster_sizes(d: dict):
     summaries = d["summaries"]
-    alg_names = list(d["labels"].keys())   # preserves insertion order
+    # Source of truth for algorithm order: cluster_metrics.csv row order,
+    # which matches the cluster_summary_<i>.csv index order from save_results.
+    alg_order = d["cluster_metrics"]["algorithm"].tolist()
     n = len(summaries)
     if n == 0:
         return
@@ -150,34 +167,36 @@ def plot_cluster_sizes(d: dict):
     if n == 1:
         axes = [axes]
 
-    for ax, (idx, df) in zip(axes, summaries.items()):
-        alg = alg_names[int(idx)] if int(idx) < len(alg_names) else idx
+    # Iterate by integer summary index so alg name maps correctly
+    for ax, idx in zip(axes, sorted(summaries.keys(), key=lambda s: int(s))):
+        df = summaries[idx]
+        i = int(idx)
+        alg = alg_order[i] if i < len(alg_order) else f"clustering_{i}"
         cmap = plt.get_cmap(COLORMAP, max(len(df), 2))
-        colors = ["lightgrey" if r["cluster"] == -1 else cmap(i % 10)
-                  for i, r in df.iterrows()]
 
         n_clusters = len(df)
-        # For many clusters (DBSCAN), use a horizontal bar chart so labels fit
         if n_clusters > 15:
-            top_df = df.nlargest(20, "size")   # show only top-20 for readability
-            top_colors = [("lightgrey" if r["cluster"] == -1
-                           else cmap(i % 10))
-                          for i, r in top_df.iterrows()]
+            top_df = df.nlargest(20, "size")
+            top_colors = [("lightgrey" if r["cluster"] == -1 else cmap(j % 10))
+                          for j, (_, r) in enumerate(top_df.iterrows())]
             ax.barh([str(c) for c in top_df["cluster"]], top_df["size"],
                     color=top_colors, edgecolor="white")
+            ax.invert_yaxis()
             ax.set_xlabel("Number of samples")
             ax.set_ylabel("Cluster")
-            ax.set_title(f"Cluster sizes (top 20) for {alg.upper()}\n"
-                         f"Total clusters: {n_clusters}  |  "
-                         f"Noise: {int(df.loc[df['cluster']==-1,'size'].sum()) if -1 in df['cluster'].values else 0}",
+            n_noise = int(df.loc[df["cluster"] == -1, "size"].sum()) if -1 in df["cluster"].values else 0
+            ax.set_title(f"Cluster sizes (top 20) — {alg.upper()}\n"
+                         f"Total clusters: {n_clusters}  |  Noise: {n_noise}",
                          fontweight="bold")
         else:
+            colors = ["lightgrey" if r["cluster"] == -1 else cmap(j % 10)
+                      for j, (_, r) in enumerate(df.iterrows())]
             bars = ax.bar([str(c) for c in df["cluster"]], df["size"],
                           color=colors, edgecolor="white")
             ax.bar_label(bars, fmt="%d", fontsize=8)
             ax.set_xlabel("Cluster")
             ax.set_ylabel("Number of samples")
-            ax.set_title(f"Cluster sizes for {alg.upper()}", fontweight="bold")
+            ax.set_title(f"Cluster sizes — {alg.upper()}", fontweight="bold")
 
     plt.tight_layout()
     fpath = out(d["dir"], "cluster_sizes.png")
@@ -185,6 +204,8 @@ def plot_cluster_sizes(d: dict):
     plt.close()
     print(f"  Saved: {fpath}")
 
+
+# 3. Silhouette plot per sample
 
 def plot_silhouette(d: dict):
     Z = d["Z"]
@@ -220,7 +241,7 @@ def plot_silhouette(d: dict):
         ax.set_yticks(yticks)
         ax.set_yticklabels(yticklabels, fontsize=8)
         ax.set_xlabel("Silhouette coefficient")
-        ax.set_title(f"Silhouette analysis ({alg.upper()})", fontweight="bold")
+        ax.set_title(f"Silhouette analysis — {alg.upper()}", fontweight="bold")
         ax.legend()
 
         plt.tight_layout()
@@ -229,6 +250,8 @@ def plot_silhouette(d: dict):
         plt.close()
         print(f"  Saved: {fpath}")
 
+
+# 4. Cluster quality metrics bar chart
 
 def plot_cluster_metrics(d: dict):
     df = d["cluster_metrics"]
@@ -262,6 +285,8 @@ def plot_cluster_metrics(d: dict):
     print(f"  Saved: {fpath}")
 
 
+# 5. Intra vs inter cluster distance distributions
+
 def plot_distance_distributions(d: dict, n_pairs: int = 4000, seed: int = 42):
     Z = d["Z"]
     rng = np.random.default_rng(seed)
@@ -284,7 +309,7 @@ def plot_distance_distributions(d: dict, n_pairs: int = 4000, seed: int = 42):
         ax.hist(dists[~same], bins=60, alpha=0.65, label="Inter-cluster",  color="#DD8452", density=True)
         ax.set_xlabel("Euclidean distance in embedding space")
         ax.set_ylabel("Density")
-        ax.set_title(f"Distance distribution ({alg.upper()})", fontweight="bold")
+        ax.set_title(f"Distance distribution — {alg.upper()}", fontweight="bold")
         ax.legend()
 
         plt.tight_layout()
@@ -293,6 +318,8 @@ def plot_distance_distributions(d: dict, n_pairs: int = 4000, seed: int = 42):
         plt.close()
         print(f"  Saved: {fpath}")
 
+
+# 6. Correlation scatter: embedding distance vs same-cluster indicator
 
 def plot_correlation_summary(d: dict):
     corr_list = d["correlation"]
@@ -335,6 +362,8 @@ def plot_correlation_summary(d: dict):
     print(f"  Saved: {fpath}")
 
 
+# 7. Feature importance (for FS-based embedding methods)
+
 def plot_feature_importance(d: dict):
     meta = d.get("embed_meta", {})
     method = meta.get("method", d["config"].get("EMBEDDING_METHOD", ""))
@@ -373,6 +402,8 @@ def plot_feature_importance(d: dict):
     print(f"  Saved: {fpath}")
 
 
+# 8. Embedding dimension statistics (mean ± std per dimension)
+
 def plot_embedding_stats(d: dict):
     Z = d["Z"]
     means = Z.mean(axis=0)
@@ -397,6 +428,8 @@ def plot_embedding_stats(d: dict):
     print(f"  Saved: {fpath}")
 
 
+# 9. Embedding correlation heatmap
+
 def plot_embedding_correlation(d: dict):
     Z = d["Z"]
     if Z.shape[1] > 64:
@@ -419,6 +452,145 @@ def plot_embedding_correlation(d: dict):
     print(f"  Saved: {fpath}")
 
 
+# 10. Autoencoder training history (train vs val loss)
+
+def plot_training_history(d: dict):
+    hist = d.get("ae_history")
+    if not hist or not hist.get("epoch"):
+        return  # not an autoencoder run
+
+    epochs = hist["epoch"]
+    train  = hist["train_loss"]
+    val    = hist.get("val_loss", [])
+    has_val = val and not all(v != v for v in val)  # not all NaN
+
+    fig, ax = plt.subplots(figsize=(8, 4.5))
+    ax.plot(epochs, train, label="Train loss", color="#4C72B0", linewidth=1.8)
+    if has_val:
+        ax.plot(epochs, val, label="Validation loss", color="#DD8452", linewidth=1.8)
+        # Mark best epoch by val loss
+        val_arr = np.array(val, dtype=float)
+        best = int(np.nanargmin(val_arr))
+        ax.axvline(epochs[best], color="grey", linestyle="--", linewidth=1,
+                   label=f"Best val @ epoch {epochs[best]} ({val_arr[best]:.4f})")
+    ax.set_xlabel("Epoch")
+    ax.set_ylabel("MSE reconstruction loss")
+    ax.set_title("Autoencoder training history", fontweight="bold")
+    ax.legend()
+
+    plt.tight_layout()
+    fpath = out(d["dir"], "training_history.png")
+    plt.savefig(fpath, bbox_inches="tight")
+    plt.close()
+    print(f"  Saved: {fpath}")
+
+
+# 11. External intra/inter correlation (target-aware)
+
+def plot_external_correlation(d: dict):
+    ext = d.get("external")
+    if not ext:
+        return
+
+    rows = []
+    for r in ext:
+        alg = r.get("algorithm", r.get("tag", "?"))
+        rows.append({
+            "algorithm": alg,
+            "Intra (Pearson)": r.get("intra_corr_pearson_mean"),
+            "Inter (Pearson)": r.get("inter_corr_pearson_mean"),
+            "Intra (Spearman)": r.get("intra_corr_spearman_mean"),
+            "Inter (Spearman)": r.get("inter_corr_spearman_mean"),
+        })
+    df = pd.DataFrame(rows).set_index("algorithm")
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4.5), sharey=True)
+    for ax, corr_kind in zip(axes, ["Pearson", "Spearman"]):
+        sub = df[[f"Intra ({corr_kind})", f"Inter ({corr_kind})"]]
+        x = np.arange(len(sub))
+        w = 0.35
+        b1 = ax.bar(x - w/2, sub[f"Intra ({corr_kind})"], w,
+                    label="Intra-cluster", color="#4C72B0", edgecolor="white")
+        b2 = ax.bar(x + w/2, sub[f"Inter ({corr_kind})"], w,
+                    label="Inter-cluster", color="#DD8452", edgecolor="white")
+        ax.bar_label(b1, fmt="%.3f", fontsize=8)
+        ax.bar_label(b2, fmt="%.3f", fontsize=8)
+        ax.set_xticks(x)
+        ax.set_xticklabels(sub.index)
+        ax.axhline(0, color="black", linewidth=0.8)
+        ax.set_title(f"External corr — {corr_kind}\n"
+                     f"corr(embedding dist, |Δy|), higher = geometry tracks target",
+                     fontweight="bold", fontsize=10)
+        ax.legend()
+    axes[0].set_ylabel("Correlation")
+
+    plt.tight_layout()
+    fpath = out(d["dir"], "external_correlation.png")
+    plt.savefig(fpath, bbox_inches="tight")
+    plt.close()
+    print(f"  Saved: {fpath}")
+
+
+# 12. Homogeneity score per algorithm
+
+def plot_homogeneity(d: dict):
+    df = d["cluster_metrics"]
+    if "homogeneity" not in df.columns:
+        return
+
+    fig, ax = plt.subplots(figsize=(6, 4))
+    vals = df["homogeneity"].astype(float)
+    bars = ax.bar(df["algorithm"], vals,
+                  color=["#4C72B0", "#DD8452"][:len(df)], edgecolor="white")
+    ax.bar_label(bars, fmt="%.3f", fontsize=10)
+    ax.set_ylim(0, 1)
+    ax.set_ylabel("Homogeneity")
+    ax.set_title("Cluster homogeneity vs y-classes\n(↑ higher is better, range 0–1)",
+                 fontweight="bold")
+
+    plt.tight_layout()
+    fpath = out(d["dir"], "homogeneity.png")
+    plt.savefig(fpath, bbox_inches="tight")
+    plt.close()
+    print(f"  Saved: {fpath}")
+
+
+# 13. Target distribution with class boundaries
+
+def plot_target_distribution(d: dict):
+    y = d.get("y")
+    info = d.get("class_info")
+    if y is None or info is None:
+        return
+
+    edges = info["bin_edges"]
+    y_max = info["y_max"]
+
+    fig, ax = plt.subplots(figsize=(9, 4.5))
+    ax.hist(y, bins=80, color="#4C72B0", alpha=0.8, edgecolor="white")
+    cmap = plt.get_cmap("tab10")
+    for c, cr in enumerate(info["class_ranges"]):
+        ax.axvspan(cr["low"], cr["high"], color=cmap(c), alpha=0.12)
+        mid = (cr["low"] + cr["high"]) / 2
+        ax.text(mid, ax.get_ylim()[1] * 0.92, f"C{c}\nn={cr['count']}",
+                ha="center", va="top", fontsize=8, color=cmap(c), fontweight="bold")
+    for e in edges[1:-1]:
+        ax.axvline(e, color="red", linestyle="--", linewidth=1)
+
+    ax.set_xlabel("Solar Generation (raw units)")
+    ax.set_ylabel("Count")
+    ax.set_title(f"Target distribution with class boundaries  (y_max = {y_max:.1f})",
+                 fontweight="bold")
+
+    plt.tight_layout()
+    fpath = out(d["dir"], "target_distribution.png")
+    plt.savefig(fpath, bbox_inches="tight")
+    plt.close()
+    print(f"  Saved: {fpath}")
+
+
+# 10. Summary statistics table
+
 def print_summary_table(d: dict):
     cfg = d["config"]
     print("\n" + "=" * 60)
@@ -435,7 +607,7 @@ def print_summary_table(d: dict):
     print(d["cluster_metrics"].to_string(index=False))
     print()
 
-    print("  Correlation analysis:")
+    print("  Correlation analysis (internal — geometry vs cluster):")
     for r in d["correlation"]:
         alg = r.get("algorithm", r.get("tag", "?"))
         parts = [f"    [{alg}]"]
@@ -443,9 +615,24 @@ def print_summary_table(d: dict):
         if "spearman_rho"      in r: parts.append(f"Spearman ρ={r['spearman_rho']:.4f}")
         if "intra_inter_ratio" in r: parts.append(f"Intra/Inter={r['intra_inter_ratio']:.4f}")
         print("  ".join(parts))
+
+    if d.get("external"):
+        print("\n  External correlation (target-aware — embedding dist vs |Δy|):")
+        for r in d["external"]:
+            alg = r.get("algorithm", r.get("tag", "?"))
+            print(f"    [{alg}]  Intra(P)={r.get('intra_corr_pearson_mean', float('nan')):.4f}  "
+                  f"Inter(P)={r.get('inter_corr_pearson_mean', float('nan')):.4f}  "
+                  f"Intra(S)={r.get('intra_corr_spearman_mean', float('nan')):.4f}  "
+                  f"Inter(S)={r.get('inter_corr_spearman_mean', float('nan')):.4f}")
+
+    if "homogeneity" in d["cluster_metrics"].columns:
+        print("\n  Homogeneity (vs y-classes):")
+        for _, row in d["cluster_metrics"].iterrows():
+            print(f"    [{row['algorithm']}]  Homogeneity={row['homogeneity']:.4f}")
     print("=" * 60)
 
-def main():
+
+def plot(results_dir: str = None):
     if not os.path.isdir(results_dir):
         print(f"Error: '{results_dir}' is not a directory.")
         sys.exit(1)
@@ -465,8 +652,19 @@ def main():
     plot_feature_importance(d)
     plot_embedding_stats(d)
     plot_embedding_correlation(d)
+    plot_training_history(d)
+    plot_external_correlation(d)
+    plot_homogeneity(d)
+    plot_target_distribution(d)
 
     print(f"\nAll plots saved to: {os.path.join(results_dir, 'plots')}/")
+
+
+# Main
+
+def main():
+    results_dir = sys.argv[1] if len(sys.argv) > 1 else "results"
+    plot(results_dir)
 
 
 if __name__ == "__main__":

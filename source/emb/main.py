@@ -1,101 +1,153 @@
 import os
 import sys
 import time
+
 import numpy as np
 
 # Make project root importable
 sys.path.insert(0, os.path.dirname(__file__))
 
 import config
-from data_loader  import load_and_preprocess, build_windows
+from data_loader  import load_and_preprocess, build_windows, discretize_target
 from embeddings   import get_embeddings
 from clustering   import run_clustering
 from analysis     import (
     pairwise_correlation_analysis,
+    external_correlation_analysis,
+    homogeneity_analysis,
     cluster_summary,
     compare_clusterings,
     save_results,
 )
-
-
-def check_torch():
-    import torch
-    print(torch.cuda.get_device_name(0))
+from plot_results import plot
 
 
 def main():
-    check_torch()
-
     t0 = time.time()
     rng = np.random.default_rng(config.RANDOM_SEED)
 
-    print("=== PV Energy Forecasting Embeddings ===\n")
+    print("=" * 70)
+    print("  PV Energy Forecasting: Unsupervised Embedding Pipeline")
+    print("=" * 70)
 
-    X, feature_names = load_and_preprocess( # todo try with or without output column in the vector for emb (with historical output to predict step t+1, without historical output for predicting step t)
+    # 1. Load & normalise
+    X, y_raw, feature_names, target_idx = load_and_preprocess(
         path=config.DATASET_PATH,
         timestamp_col=config.TIMESTAMP_COL,
         normalization=config.NORMALIZATION,
+        target_col=config.TARGET_COL,
     )
-    X_windows = build_windows(X, k=config.WINDOW_SIZE)
 
-    Z, embed_meta = get_embeddings(X_windows, method=config.EMBEDDING_METHOD)
+    # 2. Window (mode-dependent target alignment)
+    X_windows, y = build_windows(
+        X, y_raw,
+        k=config.WINDOW_SIZE,
+        mode=config.WINDOWING_MODE,
+        target_idx=target_idx,
+    )
+
+    # 2b. Discretize target into classes (for homogeneity)
+    y_classes, class_info = discretize_target(
+        y, n_classes=config.N_Y_CLASSES, low_fraction=config.LOW_CLASS_FRACTION
+    )
+
+    # 3. Embedding
+    Z, embed_meta = get_embeddings(X_windows, method=config.EMBEDDING_METHOD, y=y)
     print(f"\n[Embedding] Output shape: {Z.shape}")
+    ae_history = embed_meta.get("history")   # None for non-AE methods
 
+    # Per-window feature names (for FS importance plots)
+    if config.WINDOWING_MODE == "latest_y":
+        feat_no_target = [c for c in feature_names if c != config.TARGET_COL]
+        window_feature_names = [f"{f}_t-{config.WINDOW_SIZE-1-i}"
+                                for i in range(config.WINDOW_SIZE) for f in feat_no_target]
+    else:
+        window_feature_names = [f"{f}_t-{config.WINDOW_SIZE-1-i}"
+                                for i in range(config.WINDOW_SIZE) for f in feature_names]
+
+    # 4. Clustering
     clustering_results = run_clustering(
         Z,
-        method             = config.CLUSTERING_METHOD,
-        distance_metric    = config.DISTANCE_METRIC,
-        kmeans_k           = config.KMEANS_K,
-        kmeans_init        = config.KMEANS_INIT,
-        kmeans_max_iter    = config.KMEANS_MAX_ITER,
-        dbscan_eps         = config.DBSCAN_EPS,
+        method           = config.CLUSTERING_METHOD,
+        distance_metric  = config.DISTANCE_METRIC,
+        kmeans_k         = config.KMEANS_K,
+        kmeans_init      = config.KMEANS_INIT,
+        kmeans_max_iter  = config.KMEANS_MAX_ITER,
+        dbscan_eps       = config.DBSCAN_EPS,
         dbscan_min_samples = config.DBSCAN_MIN_SAMPLES,
-        random_seed        = config.RANDOM_SEED,
+        random_seed      = config.RANDOM_SEED,
     )
 
-    print("=== Analysis ===\n")
+    # 5. Analysis
+    print(f"\n{'='*70}")
+    print("  Qualitative / Quantitative Analysis")
+    print(f"{'='*70}")
 
     correlation_results = []
+    external_results = []
+    homogeneity_results = []
     summaries = []
 
     for alg_name, res in clustering_results.items():
         labels = res["labels"]
-        print(f"\n--- Correlation analysis: {alg_name.upper()} ---")
+        print(f"\n--- {alg_name.upper()} ---")
+
+        # Internal: embedding distance vs same-cluster indicator
         corr = pairwise_correlation_analysis(
-            Z=Z,
-            labels=labels,
-            method=config.CORRELATION_METHOD,
-            sample_pairs=config.ANALYSIS_SAMPLE_PAIRS,
-            rng=rng,
-            tag=alg_name,
+            Z=Z, labels=labels, method=config.CORRELATION_METHOD,
+            sample_pairs=config.ANALYSIS_SAMPLE_PAIRS, rng=rng, tag=alg_name,
         )
         corr["algorithm"] = alg_name
         correlation_results.append(corr)
+
+        # External: embedding distance vs |Δy| (target-aware), intra & inter
+        ext = external_correlation_analysis(
+            Z=Z, y=y, labels=labels, method=config.CORRELATION_METHOD,
+            max_pairs=config.EXT_MAX_PAIRS_PER_GROUP, rng=rng, tag=alg_name,
+        )
+        ext["algorithm"] = alg_name
+        external_results.append(ext)
+
+        # Homogeneity against discretized y-classes
+        homo = homogeneity_analysis(labels, y_classes, tag=alg_name)
+        homogeneity_results.append(homo)
 
         summary_df = cluster_summary(Z, labels, tag=alg_name)
         summaries.append(summary_df)
 
     compare_clusterings(clustering_results)
 
-    # Save results
-    config_dict = {cfg: getattr(config, cfg) for cfg in dir(config) if not cfg.startswith("_")}
-
-    # build the per-window feature name list and pass it in
-    window_feature_names = [f"{feat}_t-{config.WINDOW_SIZE - 1 - i}" for i in range(config.WINDOW_SIZE) for feat in feature_names]
+    # 6. Save results
+    config_dict = {k: getattr(config, k) for k in dir(config) if not k.startswith("_")}
 
     save_results(
-        output_dir        = config.RESULTS_DIR,
-        Z                 = Z,
-        clustering_results= clustering_results,
-        correlation_results= correlation_results,
-        summaries         = summaries,
-        config_dict       = config_dict,
-        embed_meta         = embed_meta,
-        window_feature_names = window_feature_names,
+        output_dir          = config.RESULTS_DIR,
+        Z                   = Z,
+        clustering_results  = clustering_results,
+        correlation_results = correlation_results,
+        summaries           = summaries,
+        config_dict         = config_dict,
+        y                   = y,
+        y_classes           = y_classes,
+        class_info          = class_info,
+        external_results    = external_results,
+        homogeneity_results = homogeneity_results,
+        ae_history          = ae_history,
+        embed_meta          = embed_meta,
+        window_feature_names= window_feature_names,
     )
 
     elapsed = time.time() - t0
-    print(f"=== Pipeline complete in {elapsed:.1f}s ===\n")
+    print(f"\n{'='*70}")
+    print(f"  Pipeline complete in {elapsed:.1f}s")
+    print(f"{'='*70}")
+
+    if config.PLOT:
+        print("\n[Plotting] Generating plots from results")
+
+        plot(config.RESULTS_DIR)
+
+        print(f"[Plotting] Plots saved in {config.RESULTS_DIR}/plots")
 
 
 if __name__ == "__main__":

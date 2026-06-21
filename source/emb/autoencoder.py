@@ -54,46 +54,92 @@ def train_autoencoder(
     dropout: float,
     device: str,
     random_seed: int,
-) -> Autoencoder:
-    """Train an autoencoder on the windowed data X and return the trained model."""
+    val_split: float = 0.0,
+    weight_decay: float = 0.0,
+) -> tuple[Autoencoder, dict]:
+    """
+    Train an autoencoder on windowed data X.
 
+    Parameters
+    ----------
+    val_split    : fraction of X held out for validation (0 disables validation).
+    weight_decay : L2 regularization strength passed to Adam.
+
+    Returns
+    -------
+    model   : trained Autoencoder
+    history : dict with keys 'epoch', 'train_loss', 'val_loss' (val_loss empty if no split)
+    """
     torch.manual_seed(random_seed)
     np.random.seed(random_seed)
 
     input_dim = X.shape[1]
-    model = Autoencoder(input_dim, latent_dim, hidden_dims, dropout).to(device) # todo regularisation
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    model = Autoencoder(input_dim, latent_dim, hidden_dims, dropout).to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     criterion = nn.MSELoss()
 
+    # Train / validation split
     tensor_X = torch.tensor(X, dtype=torch.float32)
-    dataset = TensorDataset(tensor_X)
-    loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=False)
+    full_ds = TensorDataset(tensor_X)
 
-    # print(f"\n[Autoencoder] Architecture: {input_dim} -> {hidden_dims} -> {latent_dim} → {list(reversed(hidden_dims))} → {input_dim}")
-    print("\n[Autoencoder] Architecture:")
-    print(f"  Encoder: {input_dim} → {{{' → '.join(map(str, hidden_dims))}}} → {latent_dim}")
-    print(f"  Decoder: {latent_dim} → {{{' → '.join(map(str, reversed(hidden_dims)))}}} → {input_dim}")
+    if val_split and val_split > 0.0:
+        n_val = int(len(full_ds) * val_split)
+        n_train = len(full_ds) - n_val
+        gen = torch.Generator().manual_seed(random_seed)
+        train_ds, val_ds = torch.utils.data.random_split(full_ds, [n_train, n_val], generator=gen)
+        val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False)
+    else:
+        train_ds, val_ds, val_loader = full_ds, None, None
+        n_train, n_val = len(full_ds), 0
+
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, drop_last=False)
+
+    print(f"\n[Autoencoder] Architecture: {input_dim} → {hidden_dims} → {latent_dim} → {list(reversed(hidden_dims))} → {input_dim}")
     print(f"[Autoencoder] Parameters: {sum(p.numel() for p in model.parameters()):,}")
+    print(f"[Autoencoder] Train samples: {n_train}  |  Val samples: {n_val}  "
+          f"|  weight_decay (L2): {weight_decay}")
     print(f"[Autoencoder] Training for {epochs} epochs …")
 
-    model.train()
+    history = {"epoch": [], "train_loss": [], "val_loss": []}
+
     for epoch in range(1, epochs + 1):
-        epoch_loss = 0.0
-        for (batch,) in loader:
+        # Train
+        model.train()
+        train_loss = 0.0
+        for (batch,) in train_loader:
             batch = batch.to(device)
             optimizer.zero_grad()
             recon, _ = model(batch)
             loss = criterion(recon, batch)
             loss.backward()
             optimizer.step()
-            epoch_loss += loss.item() * len(batch)
-            # todo validation split
-        epoch_loss /= len(X)
-        if epoch % max(1, epochs // 10) == 0 or epoch == 1:
-            print(f"  Epoch {epoch:4d}/{epochs}  MSE loss = {epoch_loss:.6f}")
+            train_loss += loss.item() * len(batch)
+        train_loss /= n_train
+
+        # Validate
+        val_loss = float("nan")
+        if val_loader is not None:
+            model.eval()
+            vloss = 0.0
+            with torch.no_grad():
+                for (batch,) in val_loader:
+                    batch = batch.to(device)
+                    recon, _ = model(batch)
+                    vloss += criterion(recon, batch).item() * len(batch)
+            val_loss = vloss / n_val
+
+        history["epoch"].append(epoch)
+        history["train_loss"].append(train_loss)
+        history["val_loss"].append(val_loss)
+
+        # if epoch % max(1, epochs // 20) == 0 or epoch == 1:
+        if val_loader is not None:
+            print(f"  Epoch {epoch:4d}/{epochs}  train={train_loss:.6f}  val={val_loss:.6f}")
+        else:
+            print(f"  Epoch {epoch:4d}/{epochs}  train={train_loss:.6f}")
 
     print("[Autoencoder] Training complete.")
-    return model
+    return model, history
 
 
 def get_autoencoder_embeddings(model: Autoencoder, X: np.ndarray, device: str) -> np.ndarray:

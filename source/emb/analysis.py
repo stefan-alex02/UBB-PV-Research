@@ -10,9 +10,10 @@ import os
 import json
 import numpy as np
 import pandas as pd
+from itertools import combinations
 from scipy import stats
 from scipy.spatial.distance import pdist, squareform
-from sklearn.metrics import adjusted_rand_score
+from sklearn.metrics import adjusted_rand_score, homogeneity_score
 
 
 def pairwise_correlation_analysis(
@@ -136,6 +137,138 @@ def _clean_labels(labels: np.ndarray) -> np.ndarray:
     return out
 
 
+# External (target-aware) intra/inter correlation
+
+def _corr(d: np.ndarray, dy: np.ndarray, method: str) -> float:
+    """Correlation between embedding distances d and target gaps dy."""
+    if len(d) < 2 or np.std(d) == 0 or np.std(dy) == 0:
+        return float("nan")
+    if method == "pearson":
+        r, _ = stats.pearsonr(d, dy)
+    else:
+        r, _ = stats.spearmanr(d, dy)
+    return float(r)
+
+
+def _sample_pairs_within(idx: np.ndarray, max_pairs: int | None, rng) -> tuple[np.ndarray, np.ndarray]:
+    """Return arrays (a, b) of unordered within-group pairs, optionally subsampled."""
+    n = len(idx)
+    total = n * (n - 1) // 2
+    if max_pairs is None or total <= max_pairs:
+        pairs = np.array(list(combinations(idx, 2)))
+        return pairs[:, 0], pairs[:, 1]
+    # Subsample: draw random distinct pairs
+    a = rng.choice(idx, size=max_pairs, replace=True)
+    b = rng.choice(idx, size=max_pairs, replace=True)
+    keep = a != b
+    return a[keep], b[keep]
+
+
+def _sample_pairs_between(idx_i: np.ndarray, idx_j: np.ndarray, max_pairs: int | None, rng):
+    """Return arrays (a, b) of cross-group pairs (a from i, b from j), optionally subsampled."""
+    total = len(idx_i) * len(idx_j)
+    if max_pairs is None or total <= max_pairs:
+        a = np.repeat(idx_i, len(idx_j))
+        b = np.tile(idx_j, len(idx_i))
+        return a, b
+    a = rng.choice(idx_i, size=max_pairs, replace=True)
+    b = rng.choice(idx_j, size=max_pairs, replace=True)
+    return a, b
+
+
+def external_correlation_analysis(
+    Z: np.ndarray,
+    y: np.ndarray,
+    labels: np.ndarray,
+    method: str,
+    max_pairs: int | None,
+    rng: np.random.Generator,
+    tag: str = "",
+) -> dict:
+    """
+    External intra/inter cluster correlation between embedding distance and |Δy|.
+
+    IntraCorr(c_i) = corr( {||z_a - z_b|| : a,b in c_i},  {|y_a - y_b| : a,b in c_i} )
+    IntraCorr(c)   = mean over clusters of IntraCorr(c_i)
+
+    InterCorr(c_i,c_j) = corr over all cross pairs (a in c_i, b in c_j)
+    InterCorr(c)       = mean over all cluster pairs
+
+    A positive correlation means: pairs that are farther apart in embedding space
+    also differ more in solar generation — i.e. the embedding geometry tracks the
+    target. Reported for both Pearson and Spearman.
+
+    Returns a dict with per-cluster and aggregate values.
+    """
+    clusters = sorted(set(labels) - {-1})   # exclude DBSCAN noise
+    if len(clusters) < 1:
+        print(f"  [{tag}] No valid clusters for external correlation. Skipping.")
+        return {}
+
+    idx_by_cluster = {c: np.where(labels == c)[0] for c in clusters}
+
+    # Intra
+    intra_pearson, intra_spearman = {}, {}
+    for c in clusters:
+        idx = idx_by_cluster[c]
+        if len(idx) < 2:
+            continue
+        a, b = _sample_pairs_within(idx, max_pairs, rng)
+        if len(a) < 2:
+            continue
+        d  = np.linalg.norm(Z[a] - Z[b], axis=1)
+        dy = np.abs(y[a] - y[b])
+        intra_pearson[c]  = _corr(d, dy, "pearson")
+        intra_spearman[c] = _corr(d, dy, "spearman")
+
+    # Inter
+    inter_pearson, inter_spearman = {}, {}
+    for ci, cj in combinations(clusters, 2):
+        a, b = _sample_pairs_between(idx_by_cluster[ci], idx_by_cluster[cj], max_pairs, rng)
+        if len(a) < 2:
+            continue
+        d  = np.linalg.norm(Z[a] - Z[b], axis=1)
+        dy = np.abs(y[a] - y[b])
+        inter_pearson[(ci, cj)]  = _corr(d, dy, "pearson")
+        inter_spearman[(ci, cj)] = _corr(d, dy, "spearman")
+
+    result = {
+        "tag": tag,
+        "n_clusters_used": len(clusters),
+        "intra_corr_pearson_mean":  float(np.nanmean(list(intra_pearson.values())))  if intra_pearson  else float("nan"),
+        "intra_corr_spearman_mean": float(np.nanmean(list(intra_spearman.values()))) if intra_spearman else float("nan"),
+        "inter_corr_pearson_mean":  float(np.nanmean(list(inter_pearson.values())))  if inter_pearson  else float("nan"),
+        "inter_corr_spearman_mean": float(np.nanmean(list(inter_spearman.values()))) if inter_spearman else float("nan"),
+        "intra_per_cluster_pearson":  {int(k): v for k, v in intra_pearson.items()},
+        "intra_per_cluster_spearman": {int(k): v for k, v in intra_spearman.items()},
+    }
+
+    print(f"  [{tag}] External IntraCorr  Pearson={result['intra_corr_pearson_mean']:.4f}  "
+          f"Spearman={result['intra_corr_spearman_mean']:.4f}")
+    print(f"  [{tag}] External InterCorr  Pearson={result['inter_corr_pearson_mean']:.4f}  "
+          f"Spearman={result['inter_corr_spearman_mean']:.4f}")
+    return result
+
+
+# Homogeneity (against discretized y classes)
+
+def homogeneity_analysis(labels: np.ndarray, y_classes: np.ndarray, tag: str = "") -> dict:
+    """
+    Homogeneity score: each cluster should contain only members of a single y-class.
+    Range [0, 1], higher is better. Noise points (-1) are excluded.
+    """
+    mask = labels != -1
+    if mask.sum() < 2 or len(set(labels[mask])) < 1:
+        print(f"  [{tag}] Not enough non-noise samples for homogeneity. Skipping.")
+        return {"tag": tag, "homogeneity": float("nan")}
+
+    h = homogeneity_score(y_classes[mask], labels[mask])
+    print(f"  [{tag}] Homogeneity (vs y-classes) = {h:.4f}")
+    return {"tag": tag, "homogeneity": float(h)}
+
+
+# Persist results
+
 def save_results(
     output_dir: str,
     Z: np.ndarray,
@@ -143,57 +276,104 @@ def save_results(
     correlation_results: list[dict],
     summaries: list[pd.DataFrame],
     config_dict: dict,
-    embed_meta=None,
-    window_feature_names=None,
+    y: np.ndarray = None,
+    y_classes: np.ndarray = None,
+    class_info: dict = None,
+    external_results: list[dict] = None,
+    homogeneity_results: list[dict] = None,
+    ae_history: dict = None,
+    embed_meta: dict = None,
+    window_feature_names: list[str] = None,
 ) -> None:
     os.makedirs(output_dir, exist_ok=True)
 
     # Embeddings
     np.save(os.path.join(output_dir, "embeddings.npy"), Z)
 
+    # External target y and its discretized classes
+    if y is not None:
+        np.save(os.path.join(output_dir, "y_targets.npy"), y)
+    if y_classes is not None:
+        np.save(os.path.join(output_dir, "y_classes.npy"), y_classes)
+    if class_info is not None:
+        with open(os.path.join(output_dir, "y_class_info.json"), "w") as f:
+            json.dump(class_info, f, indent=2)
+
     # Labels for each clustering
     for name, res in clustering_results.items():
         np.save(os.path.join(output_dir, f"labels_{name}.npy"), res["labels"])
 
-    # Cluster metrics
+    # Cluster metrics (merge in homogeneity per algorithm)
+    homo_by_alg = {r["tag"]: r.get("homogeneity") for r in (homogeneity_results or [])}
     metrics_rows = []
     for name, res in clustering_results.items():
         row = {"algorithm": name}
         row.update(res["metrics"])
+        if name in homo_by_alg:
+            row["homogeneity"] = homo_by_alg[name]
         metrics_rows.append(row)
     pd.DataFrame(metrics_rows).to_csv(os.path.join(output_dir, "cluster_metrics.csv"), index=False)
 
-    # Correlation analysis
-    corr_path = os.path.join(output_dir, "correlation_analysis.json")
-    # Convert numpy floats to python floats for JSON serialisation
-    clean = []
-    for r in correlation_results:
-        clean.append({k: (float(v) if isinstance(v, (np.floating, np.integer)) else v) for k, v in r.items()})
-    with open(corr_path, "w") as f:
-        json.dump(clean, f, indent=2)
+    # Correlation analysis (geometry-vs-cluster)
+    with open(os.path.join(output_dir, "correlation_analysis.json"), "w") as f:
+        json.dump(_jsonify(correlation_results), f, indent=2)
+
+    # External (target-aware) correlation analysis
+    if external_results is not None:
+        with open(os.path.join(output_dir, "external_correlation_analysis.json"), "w") as f:
+            json.dump(_jsonify(external_results), f, indent=2)
+
+    # Autoencoder training history
+    if ae_history is not None:
+        with open(os.path.join(output_dir, "ae_training_history.json"), "w") as f:
+            json.dump(_jsonify([ae_history])[0], f, indent=2)
 
     # Cluster summaries
     for i, df in enumerate(summaries):
         df.to_csv(os.path.join(output_dir, f"cluster_summary_{i}.csv"), index=False)
 
-    # Config snapshot
-    cfg_path = os.path.join(output_dir, "config_snapshot.json")
-    serialisable = {k: (v if not callable(v) else str(v)) for k, v in config_dict.items()}
-    with open(cfg_path, "w") as f:
-        json.dump(serialisable, f, indent=2)
-
-    if window_feature_names:
+    # Window feature names (for FS importance plots)
+    if window_feature_names is not None:
         with open(os.path.join(output_dir, "window_feature_names.json"), "w") as f:
             json.dump(window_feature_names, f)
 
-    if embed_meta:
-        serialisable_meta = {}
+    # Embedding meta (selected indices / importances), skipping the torch model
+    if embed_meta is not None:
+        meta_clean = {}
         for k, v in embed_meta.items():
+            if k in ("model", "history"):
+                continue
             if isinstance(v, np.ndarray):
-                serialisable_meta[k] = v.tolist()
-            elif not callable(v) and not hasattr(v, 'parameters'):  # skip torch model
-                serialisable_meta[k] = v
+                meta_clean[k] = v.tolist()
+            elif not callable(v):
+                meta_clean[k] = v
         with open(os.path.join(output_dir, "embed_meta.json"), "w") as f:
-            json.dump(serialisable_meta, f, indent=2)
+            json.dump(meta_clean, f, indent=2)
 
-    print(f"\n[Results] Saved '{output_dir}/'")
+    # Config snapshot
+    serialisable = {k: (v if not callable(v) else str(v)) for k, v in config_dict.items()}
+    with open(os.path.join(output_dir, "config_snapshot.json"), "w") as f:
+        json.dump(serialisable, f, indent=2)
+
+    print(f"\n[Results] Saved to '{output_dir}/'")
+    print("  embeddings.npy, y_targets.npy, y_classes.npy, y_class_info.json,")
+    print("  labels_*.npy, cluster_metrics.csv, correlation_analysis.json,")
+    print("  external_correlation_analysis.json, ae_training_history.json,")
+    print("  cluster_summary_*.csv, embed_meta.json, config_snapshot.json")
+
+
+def _jsonify(obj):
+    """Recursively convert numpy types and tuple-keyed dicts to JSON-serialisable forms."""
+    if isinstance(obj, list):
+        return [_jsonify(x) for x in obj]
+    if isinstance(obj, dict):
+        out = {}
+        for k, v in obj.items():
+            key = str(k) if isinstance(k, tuple) else k
+            out[key] = _jsonify(v)
+        return out
+    if isinstance(obj, (np.floating, np.integer)):
+        return float(obj)
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    return obj

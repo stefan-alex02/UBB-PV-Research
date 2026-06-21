@@ -1,5 +1,5 @@
 """
-All embedding / feature-extraction methods.
+embeddings.py — All embedding / feature-extraction methods.
 
 Supported methods
 -----------------
@@ -19,7 +19,7 @@ import config
 from autoencoder import train_autoencoder, get_autoencoder_embeddings
 
 
-def get_embeddings(X_windows: np.ndarray, method: str) -> tuple[np.ndarray, dict]:
+def get_embeddings(X_windows: np.ndarray, method: str, y: np.ndarray = None) -> tuple[np.ndarray, dict]:
     """
     Compute embeddings from windowed vectors.
 
@@ -27,6 +27,8 @@ def get_embeddings(X_windows: np.ndarray, method: str) -> tuple[np.ndarray, dict
     ----------
     X_windows : np.ndarray  shape (N, k*F)  — windowed + concatenated rows
     method    : str         — one of the supported method names
+    y         : np.ndarray  shape (N,)      — per-window target (used by FS methods).
+                                              If None, FS methods fall back to X[:, 0].
 
     Returns
     -------
@@ -42,13 +44,13 @@ def get_embeddings(X_windows: np.ndarray, method: str) -> tuple[np.ndarray, dict
         return _autoencoder(X_windows)
 
     elif method == "univariate_fs":
-        return _univariate_fs(X_windows, config.FS_N_FEATURES)
+        return _univariate_fs(X_windows, config.FS_N_FEATURES, y)
 
     elif method == "random_forest_fs":
-        return _random_forest_fs(X_windows, config.FS_N_FEATURES, config.RF_N_ESTIMATORS)
+        return _random_forest_fs(X_windows, config.FS_N_FEATURES, config.RF_N_ESTIMATORS, y)
 
     elif method == "relieff":
-        return _relieff(X_windows, config.FS_N_FEATURES, config.RELIEFF_N_NEIGHBORS)
+        return _relieff(X_windows, config.FS_N_FEATURES, config.RELIEFF_N_NEIGHBORS, y)
 
     else:
         raise ValueError(
@@ -58,12 +60,12 @@ def get_embeddings(X_windows: np.ndarray, method: str) -> tuple[np.ndarray, dict
 
 
 def _identity(X: np.ndarray) -> tuple[np.ndarray, dict]:
-    print(f"[Embedding] Identity: {X.shape[1]} → {X.shape[1]}")
+    print(f"[Embedding] Identity: keeping all {X.shape[1]} dimensions.")
     return X.copy(), {"method": "identity"}
 
 
 def _autoencoder(X: np.ndarray) -> tuple[np.ndarray, dict]:
-    model = train_autoencoder(
+    model, history = train_autoencoder(
         X,
         latent_dim=config.AE_LATENT_DIM,
         hidden_dims=config.AE_HIDDEN_DIMS,
@@ -73,13 +75,15 @@ def _autoencoder(X: np.ndarray) -> tuple[np.ndarray, dict]:
         dropout=config.AE_DROPOUT,
         device=config.DEVICE,
         random_seed=config.RANDOM_SEED,
+        val_split=config.AE_VAL_SPLIT,
+        weight_decay=config.AE_WEIGHT_DECAY,
     )
     Z = get_autoencoder_embeddings(model, X, config.DEVICE)
     print(f"[Embedding] Autoencoder output dim: {Z.shape[1]}")
-    return Z, {"method": "autoencoder", "model": model}
+    return Z, {"method": "autoencoder", "model": model, "history": history}
 
 
-def _univariate_fs(X: np.ndarray, k: int) -> tuple[np.ndarray, dict]:
+def _univariate_fs(X: np.ndarray, k: int, y: np.ndarray = None) -> tuple[np.ndarray, dict]:
     """
     Univariate feature selection using the F-statistic between each feature
     and the first feature (used as a proxy target for an unsupervised setting).
@@ -88,9 +92,7 @@ def _univariate_fs(X: np.ndarray, k: int) -> tuple[np.ndarray, dict]:
     latest time step — a natural regression target.
     """
     k = min(k, X.shape[1])
-    # Use the first column of the LAST timestep as regression target proxy
-    # (index 0 corresponds to SolarGeneration at window position 0)
-    y_proxy = X[:, 0]
+    y_proxy = y if y is not None else X[:, 0]
 
     selector = SelectKBest(f_regression, k=k)
     X_sel = selector.fit_transform(X, y_proxy)
@@ -100,18 +102,18 @@ def _univariate_fs(X: np.ndarray, k: int) -> tuple[np.ndarray, dict]:
     print(f"[Embedding] Univariate FS: {X.shape[1]} → {k} features selected.")
     print(f"            Top-5 feature indices by F-score: {np.argsort(scores)[::-1][:5].tolist()}")
     return X_sel.astype(np.float32), {
-        "method":           "univariate_fs",
+        "method": "univariate_fs",
         "selected_indices": selected_indices,
-        "scores":           scores,
+        "scores": scores,
     }
 
 
-def _random_forest_fs(X: np.ndarray, k: int, n_estimators: int) -> tuple[np.ndarray, dict]:
+def _random_forest_fs(X: np.ndarray, k: int, n_estimators: int, y: np.ndarray = None) -> tuple[np.ndarray, dict]:
     """
     Feature importance via Random Forest. Uses SolarGeneration (index 0) as target.
     """
     k = min(k, X.shape[1])
-    y_proxy = X[:, 0]
+    y_proxy = y if y is not None else X[:, 0]
 
     print(f"[Embedding] Random Forest FS: fitting {n_estimators} trees …")
     rf = RandomForestRegressor(
@@ -134,13 +136,13 @@ def _random_forest_fs(X: np.ndarray, k: int, n_estimators: int) -> tuple[np.ndar
     }
 
 
-def _relieff(X: np.ndarray, k: int, n_neighbors: int) -> tuple[np.ndarray, dict]:
+def _relieff(X: np.ndarray, k: int, n_neighbors: int, y: np.ndarray = None) -> tuple[np.ndarray, dict]:
     """
     ReliefF feature weighting (regression variant via skrebate).
     Uses SolarGeneration (index 0) as target.
     """
     k = min(k, X.shape[1])
-    y_proxy = X[:, 0]
+    y_proxy = y if y is not None else X[:, 0]
 
     print(f"[Embedding] ReliefF: n_neighbors={n_neighbors}, selecting {k} features …")
     fs = ReliefF(n_features_to_select=k, n_neighbors=n_neighbors)

@@ -1,30 +1,40 @@
 """
 Pipeline configuration. Edit this file to change hyperparameters and technique choices.
 """
+from datetime import datetime
 
-# Dataset
-DATASET_PATH = "../../data/private_au/Solar_Energy_Generation_CK2.csv"
-TIMESTAMP_COL = "Timestamp"          # Column to drop before processing
-RESULTS_DIR   = "results/random_forest_fs/run1"
+EXP_NAME = "test"
 
 # Windowing
-WINDOW_SIZE = 6   # k+1: number of consecutive rows per sample
+WINDOW_SIZE = 6   # k: number of consecutive rows per sample
+
+# Windowing mode — how y (target) is associated with each window:
+#   "next_y"   : window keeps ALL columns (incl. SolarGeneration); target y is the
+#                SolarGeneration of the NEXT timestep. Last window dropped. (forecasting)
+#   "latest_y" : window EXCLUDES SolarGeneration; target y is the SolarGeneration of
+#                the LATEST timestep in the window. No window sacrificed.
+WINDOWING_MODE = "next_y"
+
+# Name of the target column (solar generation)
+TARGET_COL = "SolarGeneration"
 
 # Normalization
-# Options: "standard", "minmax", "none"
+# Options: "standard" (z-score), "minmax", "none"
 NORMALIZATION = "standard"
 
 # Embedding
 # Options: "identity", "autoencoder", "univariate_fs", "random_forest_fs", "relieff"
-EMBEDDING_METHOD = "random_forest_fs"
+EMBEDDING_METHOD = "autoencoder"
 
 # Autoencoder settings (used when EMBEDDING_METHOD == "autoencoder") ---
 AE_LATENT_DIM    = 32       # Embedding dimension
 AE_HIDDEN_DIMS   = [256, 128, 64]  # Encoder hidden layer sizes (decoder mirrors this)
-AE_EPOCHS        = 50
+AE_EPOCHS        = 50 #50
 AE_BATCH_SIZE    = 64
 AE_LEARNING_RATE = 1e-3
 AE_DROPOUT       = 0.1      # Dropout rate in encoder/decoder layers
+AE_VAL_SPLIT     = 0.15     # Fraction of training data held out for validation (0 = disabled)
+AE_WEIGHT_DECAY  = 1e-5     # L2 regularization strength (Adam weight_decay). 0 = off.
 
 # --- Feature selection settings (used for *_fs methods) ---
 FS_N_FEATURES = 32          # Number of features to keep
@@ -59,6 +69,24 @@ CORRELATION_METHOD = "both"
 # Number of pairs to sample for pairwise distance correlation (None = all, can be slow)
 ANALYSIS_SAMPLE_PAIRS = 5000
 
-# Misc
+# External (target-aware) analysis
+# Discretization of y into classes for the Homogeneity metric.
+# Class 0 = "low" : y < LOW_CLASS_FRACTION * y_max  (covers night + small error margin)
+# Classes 1..3    = remaining range [LOW_CLASS_FRACTION*y_max, y_max] split equally.
+N_Y_CLASSES        = 4
+LOW_CLASS_FRACTION = 0.05   # 5% of max y is the upper bound of the "low" class
+
+# External intra/inter correlation: cap pairs per cluster (or per cluster-pair) for speed.
+EXT_MAX_PAIRS_PER_GROUP = 20000   # None = use all pairs (can be very slow for big clusters)
+
+#  Misc
 RANDOM_SEED = 42
 DEVICE = "cpu"   # "cuda" or "cpu"
+
+# Dataset
+DATASET_PATH = "../../data/private_au/Solar_Energy_Generation_CK2.csv"
+TIMESTAMP_COL = "Timestamp"          # Column to drop before processing
+_now = datetime.now() # underscore to avoid saving it in the results json
+RESULTS_DIR   = f"results/{EMBEDDING_METHOD}/{_now.strftime('%Y-%m-%d_%H-%M-%S')}_{EXP_NAME}"
+PLOT = True
+
