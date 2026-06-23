@@ -75,10 +75,15 @@ def main():
         "kmeans_k":          config.KMEANS_K,
         "kmeans_init":       config.KMEANS_INIT,
         "kmeans_max_iter":   config.KMEANS_MAX_ITER,
+
         "dbscan_eps":        config.DBSCAN_EPS,
         "dbscan_min_samples":config.DBSCAN_MIN_SAMPLES,
+
         "agg_n_clusters":    config.AGG_N_CLUSTERS,
         "agg_linkage":       config.AGG_LINKAGE,
+        "agg_connectivity":  config.AGG_CONNECTIVITY,
+        "agg_connectivity_param": config.AGG_CONNECTIVITY_PARAM,
+
     }
     clustering_results = run_clustering(
         Z,

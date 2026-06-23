@@ -7,7 +7,7 @@ import numpy as np
 from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering
 from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score
 from sklearn.preprocessing import StandardScaler
-
+from sklearn.neighbors import kneighbors_graph, radius_neighbors_graph
 
 def run_clustering(
     Z: np.ndarray,
@@ -47,7 +47,8 @@ def run_clustering(
             random_seed, distance_metric),
         "agglomerative": lambda: _run_agglomerative(
             Z_cluster, params["agg_n_clusters"], params["agg_linkage"],
-            distance_metric),
+            params["agg_connectivity"], params["agg_connectivity_param"],
+        distance_metric),
     }
 
     results = {}
@@ -106,7 +107,7 @@ def _run_dbscan(Z, eps, min_samples, seed, metric_name):
     return {"labels": labels, "metrics": metrics, "model": db}
 
 
-def _run_agglomerative(Z, n_clusters, linkage, metric_name):
+def _run_agglomerative(Z, n_clusters, linkage, connectivity, connectivity_param, metric_name):
     """
     Hierarchical agglomerative clustering (bottom-up merging).
 
@@ -116,11 +117,18 @@ def _run_agglomerative(Z, n_clusters, linkage, metric_name):
     Note: O(n^2) memory. For very large N (>~50k) this can be heavy; if you hit
     memory limits, cluster on a subsample or switch linkage.
     """
-    print(f"[Agglomerative] n_clusters={n_clusters}, linkage={linkage!r} …")
+    print(f"[Agglomerative] n_clusters={n_clusters}, linkage={linkage!r}, connectivity={connectivity!r} (param={connectivity_param}) …")
     if Z.shape[0] > 50000:
         print(f"  [Warning] N={Z.shape[0]} is large for agglomerative clustering "
               f"(O(n^2) memory). This may be slow or memory-heavy.")
-    agg = AgglomerativeClustering(n_clusters=n_clusters, linkage=linkage) # todo too spatially complex: O(n^2)
+
+    conn = None
+    if connectivity == "knn":
+        conn = kneighbors_graph(Z, n_neighbors=connectivity_param, include_self=False)
+    elif connectivity == "radius":
+        conn = radius_neighbors_graph(Z, radius=connectivity_param, include_self=False)
+
+    agg = AgglomerativeClustering(n_clusters=n_clusters, linkage=linkage, connectivity=conn)
     labels = agg.fit_predict(Z)
     metrics = _compute_metrics(Z, labels, algorithm="agglomerative")
     metrics["n_clusters"] = n_clusters

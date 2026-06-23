@@ -3,7 +3,7 @@ Pipeline configuration. Edit this file to change hyperparameters and technique c
 """
 from datetime import datetime
 
-EXP_NAME = "win6_kmeans8_latest_y"
+EXP_NAME = "win6_kmeans8_latest_y_agg_cl_radius"
 
 # Windowing
 WINDOW_SIZE = 6   # k: number of consecutive rows per sample
@@ -59,7 +59,7 @@ RELIEFF_N_NEIGHBORS = 10
 # Clustering
 # List any subset of: "kmeans", "dbscan", "agglomerative".
 # Each selected method is computed and evaluated independently.
-CLUSTERING_METHODS = ["kmeans", "dbscan"]
+CLUSTERING_METHODS = ["kmeans", "agglomerative"]
 
 # --- K-Means ---
 KMEANS_K = 8
@@ -73,6 +73,9 @@ DBSCAN_MIN_SAMPLES = 5
 # --- Agglomerative (hierarchical) ---
 AGG_N_CLUSTERS = 8
 AGG_LINKAGE    = "ward"   # "ward" (Euclidean only), "complete", "average", "single"
+AGG_CONNECTIVITY = "radius" # "none", "knn" (k-nearest neighbors), or "radius" (radius neighbors)
+# AGG_CONNECTIVITY_PARAM = 15  # k for knn, radius for radius neighbors
+AGG_CONNECTIVITY_PARAM = .1
 
 # --- Distance metric for clustering analysis ---
 # Options: "euclidean", "mahalanobis"
