@@ -3,7 +3,7 @@ Pipeline configuration. Edit this file to change hyperparameters and technique c
 """
 from datetime import datetime
 
-EXP_NAME = "win6_latest_y_identity"
+EXP_NAME = "win6_latest_y_default_large_ae"
 
 # Windowing
 WINDOW_SIZE = 6   # k: number of consecutive rows per sample
@@ -24,7 +24,7 @@ NORMALIZATION = "standard"
 
 # Embedding
 # Options: "identity", "autoencoder", "univariate_fs", "random_forest_fs", "relieff"
-EMBEDDING_METHOD = "identity"
+EMBEDDING_METHOD = "autoencoder"
 
 # Whether to standardize (z-score) the EMBEDDING before clustering/analysis.
 # Autoencoder latent dims often have very different scales; standardizing prevents
@@ -38,7 +38,7 @@ AE_LATENT_DIM    = 32       # Embedding dimension
 #   - "auto"  → geometric funnel auto-derived from input dim & latent dim,
 #               scaling automatically with WINDOW_SIZE. Recommended.
 # AE_HIDDEN_DIMS   = "auto"
-AE_HIDDEN_DIMS   = [128, 64]
+AE_HIDDEN_DIMS   = [256, 128, 64]
 AE_AUTO_N_LAYERS = 2        # number of hidden layers when AE_HIDDEN_DIMS == "auto"
 AE_EPOCHS        = 50
 AE_BATCH_SIZE    = 64
@@ -106,6 +106,45 @@ LOW_CLASS_FRACTION = 0.05   # 5% of max y is the upper bound of the "low" class
 
 # External intra/inter correlation: cap pairs per cluster (or per cluster-pair) for speed.
 EXT_MAX_PAIRS_PER_GROUP = 20000   # None = use all pairs (can be very slow for big clusters)
+
+# === Supervised forecasting probe =============================================================
+# A frozen probe: train a regressor to predict y from the (already-computed)
+# representation, with time-series cross-validation. Answers "does this embedding
+# carry forecast-relevant signal?" and provides interpretable feature importances.
+RUN_SUPERVISED = False
+
+# Which model to probe with: "xgboost", "random_forest", "mlp".
+SUPERVISED_MODEL = "xgboost"
+
+# Which representations to probe:
+#   "embedding" → on Z (gives the embedding-usefulness score; latent dims not interpretable)
+#   "raw"       → on the raw windowed features (interpretable importances mapped to columns)
+SUPERVISED_ON = ["embedding", "raw"]
+
+# Time-series cross-validation folds (expanding-window forward chaining; no shuffling).
+CV_N_SPLITS = 5
+
+# Explainability
+RUN_SHAP = True          # SHAP attributions (TreeExplainer for tree models; slow KernelSHAP for MLP)
+SHAP_MAX_SAMPLES = 500   # cap samples passed to SHAP for speed
+
+# --- XGBoost params ---
+XGB_N_ESTIMATORS = 300
+XGB_MAX_DEPTH    = 6
+XGB_LEARNING_RATE= 0.1
+XGB_SUBSAMPLE    = 0.9
+
+# --- Random Forest (supervised) params ---
+SUP_RF_N_ESTIMATORS = 300
+SUP_RF_MAX_DEPTH    = None
+
+# --- MLP params ---
+MLP_HIDDEN_LAYERS = [128, 64]
+MLP_ALPHA         = 1e-4   # L2 penalty
+MLP_LEARNING_RATE = 1e-3
+MLP_MAX_ITER      = 300
+
+# ===============================================================================================
 
 #  Misc
 RANDOM_SEED = 42

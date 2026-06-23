@@ -96,6 +96,7 @@ def load_results(results_dir: str) -> dict:
     data["class_info"]   = _opt_json("y_class_info.json")
     data["external"]     = _opt_json("external_correlation_analysis.json")
     data["ae_history"]   = _opt_json("ae_training_history.json")
+    data["supervised"]   = _opt_json("supervised_results.json")
 
     return data
 
@@ -586,6 +587,74 @@ def plot_target_distribution(d: dict):
     print(f"  Saved: {fpath}")
 
 
+# 14. Supervised probe: CV scores
+
+def plot_supervised_scores(d: dict):
+    sup = d.get("supervised")
+    if not sup:
+        return
+
+    kinds = list(sup.keys())  # "embedding", "raw"
+    metrics = [("r2", "R²  (↑ better)"), ("mae", "MAE  (↓ better)"), ("rmse", "RMSE  (↓ better)")]
+
+    fig, axes = plt.subplots(1, len(metrics), figsize=(4.5 * len(metrics), 4))
+    if len(metrics) == 1:
+        axes = [axes]
+
+    model_name = sup[kinds[0]].get("model", "model")
+    for ax, (key, label) in zip(axes, metrics):
+        means = [sup[k]["cv_summary"][f"{key}_mean"] for k in kinds]
+        stds  = [sup[k]["cv_summary"][f"{key}_std"]  for k in kinds]
+        bars = ax.bar(kinds, means, yerr=stds, capsize=5,
+                      color=["#4C72B0", "#DD8452"][:len(kinds)], edgecolor="white")
+        ax.bar_label(bars, fmt="%.3f", fontsize=9, padding=3)
+        ax.set_title(label, fontweight="bold")
+        ax.set_ylabel(key)
+    fig.suptitle(f"Supervised forecast probe ({model_name}) — time-series CV",
+                 fontweight="bold")
+
+    plt.tight_layout()
+    fpath = out(d["dir"], "supervised_scores.png")
+    plt.savefig(fpath, bbox_inches="tight")
+    plt.close()
+    print(f"  Saved: {fpath}")
+
+
+# 15. Supervised probe: feature importance (raw, per original column)
+
+def plot_supervised_importance(d: dict):
+    sup = d.get("supervised")
+    if not sup or "raw" not in sup:
+        return
+
+    raw = sup["raw"]
+    model_name = raw.get("model", "model")
+
+    # Prefer SHAP-by-column if available, else permutation/impurity importance.
+    use_shap = raw.get("shap_by_column") is not None
+    by_col = raw.get("shap_by_column") if use_shap else raw.get("importances_by_column")
+    if not by_col:
+        return
+    kind = "mean |SHAP|" if use_shap else raw.get("importance_kind", "importance")
+
+    cols = sorted(by_col, key=lambda c: by_col[c], reverse=True)
+    vals = [by_col[c] for c in cols]
+
+    fig, ax = plt.subplots(figsize=(9, max(4, len(cols) * 0.4)))
+    bars = ax.barh(range(len(cols)), vals[::-1], color="#4C72B0", edgecolor="white")
+    ax.set_yticks(range(len(cols)))
+    ax.set_yticklabels(cols[::-1], fontsize=9)
+    ax.set_xlabel(f"{kind} (averaged over window time steps)")
+    ax.set_title(f"Feature importance per original column — {model_name}\n"
+                 f"(raw windowed input)", fontweight="bold")
+
+    plt.tight_layout()
+    fpath = out(d["dir"], "supervised_importance.png")
+    plt.savefig(fpath, bbox_inches="tight")
+    plt.close()
+    print(f"  Saved: {fpath}")
+
+
 # 10. Summary statistics table
 
 def print_summary_table(d: dict):
@@ -653,6 +722,8 @@ def plot(results_dir: str = None):
     plot_external_correlation(d)
     plot_homogeneity(d)
     plot_target_distribution(d)
+    plot_supervised_scores(d)
+    plot_supervised_importance(d)
 
     print(f"\nAll plots saved to: {os.path.join(results_dir, 'plots')}/")
 
@@ -660,7 +731,6 @@ def plot(results_dir: str = None):
 # Main
 
 def main():
-    results_dir = sys.argv[1] if len(sys.argv) > 1 else "results"
     plot(results_dir)
 
 

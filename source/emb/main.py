@@ -18,6 +18,7 @@ from analysis     import (
     compare_clusterings,
     save_results,
 )
+from supervised   import run_supervised_probe
 from plot_results import plot
 
 
@@ -138,6 +139,35 @@ def main():
 
     compare_clusterings(clustering_results)
 
+    # 5b. Supervised forecasting probe (frozen embeddings → y)
+    supervised_results = None
+    if config.RUN_SUPERVISED:
+        sup_params = {
+            "xgb_n_estimators": config.XGB_N_ESTIMATORS,
+            "xgb_max_depth":    config.XGB_MAX_DEPTH,
+            "xgb_learning_rate":config.XGB_LEARNING_RATE,
+            "xgb_subsample":    config.XGB_SUBSAMPLE,
+
+            "rf_n_estimators":  config.SUP_RF_N_ESTIMATORS,
+            "rf_max_depth":     config.SUP_RF_MAX_DEPTH,
+            
+            "mlp_hidden_layers":config.MLP_HIDDEN_LAYERS,
+            "mlp_alpha":        config.MLP_ALPHA,
+            "mlp_learning_rate":config.MLP_LEARNING_RATE,
+            "mlp_max_iter":     config.MLP_MAX_ITER,
+        }
+        supervised_results = run_supervised_probe(
+            Z=Z, X_windows=X_windows, y=y,
+            window_feature_names=window_feature_names,
+            model_name=config.SUPERVISED_MODEL,
+            model_params=sup_params,
+            n_splits=config.CV_N_SPLITS,
+            probe_on=config.SUPERVISED_ON,
+            random_seed=config.RANDOM_SEED,
+            run_shap=config.RUN_SHAP,
+            shap_max_samples=config.SHAP_MAX_SAMPLES,
+        )
+
     # 6. Save results
     config_dict = {k: getattr(config, k) for k in dir(config) if not k.startswith("_")}
 
@@ -156,6 +186,7 @@ def main():
         ae_history          = ae_history,
         embed_meta          = embed_meta,
         window_feature_names= window_feature_names,
+        supervised_results  = supervised_results,
     )
 
     elapsed = time.time() - t0

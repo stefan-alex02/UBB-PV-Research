@@ -306,6 +306,7 @@ def save_results(
     ae_history: dict = None,
     embed_meta: dict = None,
     window_feature_names: list[str] = None,
+    supervised_results: dict = None,
 ) -> None:
     os.makedirs(output_dir, exist_ok=True)
 
@@ -371,6 +372,11 @@ def save_results(
                 meta_clean[k] = v
         with open(os.path.join(output_dir, "embed_meta.json"), "w") as f:
             json.dump(meta_clean, f, indent=2)
+
+    # Supervised probe results
+    if supervised_results is not None:
+        with open(os.path.join(output_dir, "supervised_results.json"), "w") as f:
+            json.dump(_jsonify(supervised_results), f, indent=2)
 
     # Config snapshot
     serialisable = {k: (v if not callable(v) else str(v)) for k, v in config_dict.items()}
