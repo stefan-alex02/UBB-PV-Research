@@ -5,7 +5,8 @@ with Euclidean or Mahalanobis distance. Methods are selected via a configurable 
 
 import numpy as np
 from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering
-from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score
+from sklearn.mixture import GaussianMixture
+from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score, pairwise_distances
 from sklearn.preprocessing import StandardScaler
 from sklearn.neighbors import kneighbors_graph, radius_neighbors_graph
 
@@ -47,8 +48,14 @@ def run_clustering(
             random_seed, distance_metric),
         "agglomerative": lambda: _run_agglomerative(
             Z_cluster, params["agg_n_clusters"], params["agg_linkage"],
-            params["agg_connectivity"], params["agg_connectivity_param"],
-        distance_metric),
+            distance_metric, params["agg_connectivity"],
+            params["agg_connectivity_param"]),
+        "kmedoids": lambda: _run_kmedoids(
+            Z_cluster, params["kmedoids_k"], params["kmedoids_metric"],
+            params["kmedoids_max_iter"], random_seed, distance_metric),
+        "gmm": lambda: _run_gmm(
+            Z_cluster, params["gmm_n_components"], params["gmm_covariance_type"],
+            random_seed, distance_metric),
     }
 
     results = {}
@@ -107,34 +114,118 @@ def _run_dbscan(Z, eps, min_samples, seed, metric_name):
     return {"labels": labels, "metrics": metrics, "model": db}
 
 
-def _run_agglomerative(Z, n_clusters, linkage, connectivity, connectivity_param, metric_name):
+def _build_connectivity(Z, kind, param):
+    """Build a sparse connectivity matrix to make agglomerative clustering
+    memory-feasible on large N (avoids the O(n^2) full distance matrix).
+
+    kind: "none"   → no constraint (dense, O(n^2) memory)
+          "knn"    → k-nearest-neighbors graph (param = k, int)
+          "radius" → radius-neighbors graph (param = radius, float)
+    """
+    if kind == "none":
+        return None
+    from sklearn.neighbors import kneighbors_graph, radius_neighbors_graph
+    if kind == "knn":
+        return kneighbors_graph(Z, n_neighbors=int(param), include_self=False)
+    if kind == "radius":
+        return radius_neighbors_graph(Z, radius=float(param), include_self=False)
+    raise ValueError(f"Unknown AGG_CONNECTIVITY: {kind!r}. Choose 'none', 'knn', or 'radius'.")
+
+
+def _run_agglomerative(Z, n_clusters, linkage, metric_name,
+                       connectivity="none", connectivity_param=15):
     """
     Hierarchical agglomerative clustering (bottom-up merging).
 
     linkage: "ward" (minimizes within-cluster variance; requires Euclidean),
              "complete", "average", or "single".
 
-    Note: O(n^2) memory. For very large N (>~50k) this can be heavy; if you hit
-    memory limits, cluster on a subsample or switch linkage.
+    connectivity: a sparse neighbor graph that restricts which merges are allowed.
+                  Using "knn" or "radius" avoids the dense O(n^2) distance matrix,
+                  making large N feasible. "none" uses the full (memory-heavy) matrix.
     """
-    print(f"[Agglomerative] n_clusters={n_clusters}, linkage={linkage!r}, connectivity={connectivity!r} (param={connectivity_param}) …")
-    if Z.shape[0] > 50000:
-        print(f"  [Warning] N={Z.shape[0]} is large for agglomerative clustering "
-              f"(O(n^2) memory). This may be slow or memory-heavy.")
+    print(f"[Agglomerative] n_clusters={n_clusters}, linkage={linkage!r}, "
+          f"connectivity={connectivity!r}({connectivity_param}) …")
+    if connectivity == "none" and Z.shape[0] > 50000:
+        print(f"  [Warning] N={Z.shape[0]} with connectivity='none' needs O(n^2) memory. "
+              f"Consider AGG_CONNECTIVITY='knn' or 'radius'.")
 
-    conn = None
-    if connectivity == "knn":
-        conn = kneighbors_graph(Z, n_neighbors=connectivity_param, include_self=False)
-    elif connectivity == "radius":
-        conn = radius_neighbors_graph(Z, radius=connectivity_param, include_self=False)
-
+    conn = _build_connectivity(Z, connectivity, connectivity_param)
+    if conn is not None:
+        avg_neighbors = conn.nnz / Z.shape[0]
+        if avg_neighbors < 1.0:
+            print(f"  [Warning] connectivity graph is very sparse "
+                  f"(~{avg_neighbors:.2f} neighbors/point). With '{connectivity}'="
+                  f"{connectivity_param}, most points are isolated, which makes "
+                  f"agglomerative slow and the result degenerate. Increase the parameter "
+                  f"(for 'radius', try a value near the typical inter-point distance; "
+                  f"for 'knn', try 10–30).")
     agg = AgglomerativeClustering(n_clusters=n_clusters, linkage=linkage, connectivity=conn)
     labels = agg.fit_predict(Z)
     metrics = _compute_metrics(Z, labels, algorithm="agglomerative")
-    metrics["n_clusters"] = n_clusters
+    metrics["n_clusters"] = len(set(labels))
     print(f"[Agglomerative] {_fmt_metrics(metrics)}")
     return {"labels": labels, "metrics": metrics, "model": agg}
 
+
+def _run_kmedoids(Z, k, metric, max_iter, seed, metric_name):
+    """
+    k-medoids (PAM / Voronoi-iteration). Cluster centers are actual data points
+    (medoids), which makes it more robust to outliers than k-means and usable with
+    any distance metric. Implemented directly (scikit-learn-extra is incompatible
+    with numpy 2.x).
+    """
+    print(f"[K-Medoids] k={k}, metric={metric!r}, max_iter={max_iter} …")
+    if Z.shape[0] > 30000:
+        print(f"  [Warning] N={Z.shape[0]} is large for k-medoids; per-cluster pairwise "
+              f"distances can be slow/memory-heavy.")
+    rng = np.random.default_rng(seed)
+    n = Z.shape[0]
+    medoids = rng.choice(n, size=k, replace=False)
+    D = pairwise_distances(Z, Z[medoids], metric=metric)
+    labels = D.argmin(axis=1)
+
+    for _ in range(max_iter):
+        new_medoids = medoids.copy()
+        for j in range(k):
+            members = np.where(labels == j)[0]
+            if len(members) == 0:
+                continue
+            sub = pairwise_distances(Z[members], metric=metric)
+            new_medoids[j] = members[sub.sum(axis=1).argmin()]
+        D = pairwise_distances(Z, Z[new_medoids], metric=metric)
+        new_labels = D.argmin(axis=1)
+        if np.array_equal(new_medoids, medoids):
+            labels = new_labels
+            break
+        medoids, labels = new_medoids, new_labels
+
+    metrics = _compute_metrics(Z, labels, algorithm="kmedoids")
+    metrics["n_clusters"] = k
+    metrics["inertia"] = float(D[np.arange(n), labels].sum())  # total cost to medoids
+    print(f"[K-Medoids] Cost={metrics['inertia']:.4f}  |  {_fmt_metrics(metrics)}")
+    return {"labels": labels, "metrics": metrics, "model": {"medoids": medoids.tolist()}}
+
+
+def _run_gmm(Z, n_components, covariance_type, seed, metric_name):
+    """
+    Gaussian Mixture Model. Models each cluster as an ellipsoidal Gaussian (vs.
+    k-means' spherical assumption), which suits correlated autoencoder latents.
+    Reports BIC/AIC for model selection across n_components.
+    """
+    print(f"[GMM] n_components={n_components}, covariance_type={covariance_type!r} …")
+    gmm = GaussianMixture(n_components=n_components, covariance_type=covariance_type,
+                          random_state=seed, n_init=3)
+    labels = gmm.fit_predict(Z)
+    metrics = _compute_metrics(Z, labels, algorithm="gmm")
+    metrics["n_clusters"] = len(set(labels))
+    metrics["bic"] = float(gmm.bic(Z))
+    metrics["aic"] = float(gmm.aic(Z))
+    print(f"[GMM] BIC={metrics['bic']:.1f}  AIC={metrics['aic']:.1f}  |  {_fmt_metrics(metrics)}")
+    return {"labels": labels, "metrics": metrics, "model": gmm}
+
+
+# Internal metrics
 
 def _compute_metrics(Z: np.ndarray, labels: np.ndarray, algorithm: str) -> dict:
     """Compute silhouette, Davies-Bouldin, Calinski-Harabasz where applicable."""

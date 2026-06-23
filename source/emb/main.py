@@ -84,6 +84,12 @@ def main():
         "agg_connectivity":  config.AGG_CONNECTIVITY,
         "agg_connectivity_param": config.AGG_CONNECTIVITY_PARAM,
 
+        "kmedoids_k":        config.KMEDOIDS_K,
+        "kmedoids_metric":   config.KMEDOIDS_METRIC,
+        "kmedoids_max_iter": config.KMEDOIDS_MAX_ITER,
+
+        "gmm_n_components":  config.GMM_N_COMPONENTS,
+        "gmm_covariance_type": config.GMM_COVARIANCE_TYPE,
     }
     clustering_results = run_clustering(
         Z,

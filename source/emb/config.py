@@ -3,7 +3,7 @@ Pipeline configuration. Edit this file to change hyperparameters and technique c
 """
 from datetime import datetime
 
-EXP_NAME = "win6_kmeans8_latest_y_agg_cl_radius"
+EXP_NAME = "win6_latest_y_identity"
 
 # Windowing
 WINDOW_SIZE = 6   # k: number of consecutive rows per sample
@@ -24,7 +24,7 @@ NORMALIZATION = "standard"
 
 # Embedding
 # Options: "identity", "autoencoder", "univariate_fs", "random_forest_fs", "relieff"
-EMBEDDING_METHOD = "autoencoder"
+EMBEDDING_METHOD = "identity"
 
 # Whether to standardize (z-score) the EMBEDDING before clustering/analysis.
 # Autoencoder latent dims often have very different scales; standardizing prevents
@@ -38,7 +38,7 @@ AE_LATENT_DIM    = 32       # Embedding dimension
 #   - "auto"  → geometric funnel auto-derived from input dim & latent dim,
 #               scaling automatically with WINDOW_SIZE. Recommended.
 # AE_HIDDEN_DIMS   = "auto"
-AE_HIDDEN_DIMS   = [256, 128, 64]
+AE_HIDDEN_DIMS   = [128, 64]
 AE_AUTO_N_LAYERS = 2        # number of hidden layers when AE_HIDDEN_DIMS == "auto"
 AE_EPOCHS        = 50
 AE_BATCH_SIZE    = 64
@@ -57,25 +57,34 @@ RF_N_ESTIMATORS = 100
 RELIEFF_N_NEIGHBORS = 10
 
 # Clustering
-# List any subset of: "kmeans", "dbscan", "agglomerative".
+# List any subset of: "kmeans", "dbscan", "agglomerative", "kmedoids", "gmm".
 # Each selected method is computed and evaluated independently.
-CLUSTERING_METHODS = ["kmeans", "agglomerative"]
+CLUSTERING_METHODS = ["kmeans", "agglomerative", "kmedoids", "gmm"]
 
 # --- K-Means ---
-KMEANS_K = 8
+KMEANS_K = 4
 KMEANS_INIT = "k-means++"   # "k-means++" or "random"
 KMEANS_MAX_ITER = 300
 
 # --- DBSCAN ---
-DBSCAN_EPS    = 3.
+DBSCAN_EPS    = 5.
 DBSCAN_MIN_SAMPLES = 5
 
 # --- Agglomerative (hierarchical) ---
-AGG_N_CLUSTERS = 8
+AGG_N_CLUSTERS = 4
 AGG_LINKAGE    = "ward"   # "ward" (Euclidean only), "complete", "average", "single"
-AGG_CONNECTIVITY = "radius" # "none", "knn" (k-nearest neighbors), or "radius" (radius neighbors)
-# AGG_CONNECTIVITY_PARAM = 15  # k for knn, radius for radius neighbors
-AGG_CONNECTIVITY_PARAM = .1
+AGG_CONNECTIVITY = "knn"   # "none", "knn" (k-nearest neighbors), or "radius" (radius neighbors)
+AGG_CONNECTIVITY_PARAM = 15   # k (int) for knn, radius (float) for radius neighbors
+
+# --- K-Medoids (PAM) ---
+KMEDOIDS_K        = 4
+KMEDOIDS_METRIC   = "euclidean"   # any sklearn pairwise metric, e.g. "manhattan", "cosine"
+KMEDOIDS_MAX_ITER = 300
+
+# --- Gaussian Mixture Model ---
+GMM_N_COMPONENTS   = 4
+GMM_COVARIANCE_TYPE = "full"   # "full", "tied", "diag", "spherical"
+
 
 # --- Distance metric for clustering analysis ---
 # Options: "euclidean", "mahalanobis"
@@ -100,7 +109,7 @@ EXT_MAX_PAIRS_PER_GROUP = 20000   # None = use all pairs (can be very slow for b
 
 #  Misc
 RANDOM_SEED = 42
-DEVICE = "cpu"   # "cuda" or "cpu"
+DEVICE = "cuda"   # "cuda" or "cpu"
 
 # Dataset
 DATASET_PATH = "../../data/private_au/Solar_Energy_Generation_CK2.csv"
@@ -108,4 +117,3 @@ TIMESTAMP_COL = "Timestamp"          # Column to drop before processing
 _now = datetime.now() # underscore to avoid saving it in the results json
 RESULTS_DIR   = f"results/{EMBEDDING_METHOD}/{_now.strftime('%Y-%m-%d_%H-%M-%S')}_{EXP_NAME}"
 PLOT = True
-
