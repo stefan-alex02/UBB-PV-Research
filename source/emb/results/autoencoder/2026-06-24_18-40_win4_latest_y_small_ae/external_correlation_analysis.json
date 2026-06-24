@@ -1,0 +1,150 @@
+[
+  {
+    "tag": "kmeans",
+    "n_clusters_used": 4,
+    "intra_corr_pearson_mean": 0.13989962823688984,
+    "intra_corr_pearson_mean_p": 7.006492321624085e-46,
+    "intra_corr_spearman_mean": 0.1356396828076965,
+    "intra_corr_spearman_mean_p": 4.1262256952828057e-76,
+    "inter_corr_pearson_mean": 0.129701962073644,
+    "inter_corr_pearson_mean_p": 0.0,
+    "inter_corr_spearman_mean": 0.15077817599720014,
+    "inter_corr_spearman_mean_p": 3.8040225585773775e-132,
+    "intra_per_cluster_pearson": {
+      "0": 0.15259137749671936,
+      "1": 0.19412876665592194,
+      "2": 0.14245058596134186,
+      "3": 0.0704277828335762
+    },
+    "intra_per_cluster_pearson_p": {
+      "0": 0.0,
+      "1": 0.0,
+      "2": 0.0,
+      "3": 2.802596928649634e-45
+    },
+    "intra_per_cluster_spearman": {
+      "0": 0.1624445001439981,
+      "1": 0.14305244197023528,
+      "2": 0.14530674429305493,
+      "3": 0.09175504482349772
+    },
+    "intra_per_cluster_spearman_p": {
+      "0": 1.603438935622828e-234,
+      "1": 8.06981218039298e-182,
+      "2": 1.2414818660733603e-187,
+      "3": 1.6504902781131223e-75
+    },
+    "algorithm": "kmeans"
+  },
+  {
+    "tag": "agglomerative",
+    "n_clusters_used": 4,
+    "intra_corr_pearson_mean": 0.17648312024539337,
+    "intra_corr_pearson_mean_p": 0.11113576591014862,
+    "intra_corr_spearman_mean": 0.17483925536898828,
+    "intra_corr_spearman_mean_p": 8.596510758015995e-19,
+    "inter_corr_pearson_mean": 0.13043398037552834,
+    "inter_corr_pearson_mean_p": 2.028304034534436e-28,
+    "inter_corr_spearman_mean": 0.14635304301769703,
+    "inter_corr_spearman_mean_p": 6.101272512524876e-36,
+    "intra_per_cluster_pearson": {
+      "0": 0.17573651671409607,
+      "1": 0.2935483455657959,
+      "2": 0.2404710054397583,
+      "3": -0.003823386738076806
+    },
+    "intra_per_cluster_pearson_p": {
+      "0": 0.0,
+      "1": 0.0,
+      "2": 0.0,
+      "3": 0.4445430636405945
+    },
+    "intra_per_cluster_spearman": {
+      "0": 0.18643561636643705,
+      "1": 0.2283107906437005,
+      "2": 0.2411434032447318,
+      "3": 0.043467211221083754
+    },
+    "intra_per_cluster_spearman_p": {
+      "0": 1.419315927324194e-309,
+      "1": 0.0,
+      "2": 0.0,
+      "3": 3.438604303206398e-18
+    },
+    "algorithm": "agglomerative"
+  },
+  {
+    "tag": "kmedoids",
+    "n_clusters_used": 4,
+    "intra_corr_pearson_mean": 0.14883758127689362,
+    "intra_corr_pearson_mean_p": 0.0,
+    "intra_corr_spearman_mean": 0.14513349266597544,
+    "intra_corr_spearman_mean_p": 2.0079389908868368e-100,
+    "inter_corr_pearson_mean": 0.12769824638962746,
+    "inter_corr_pearson_mean_p": 0.0,
+    "inter_corr_spearman_mean": 0.15128045016461492,
+    "inter_corr_spearman_mean_p": 1.075910486632622e-135,
+    "intra_per_cluster_pearson": {
+      "0": 0.18915008008480072,
+      "1": 0.18793761730194092,
+      "2": 0.0817076563835144,
+      "3": 0.13655497133731842
+    },
+    "intra_per_cluster_pearson_p": {
+      "0": 0.0,
+      "1": 0.0,
+      "2": 0.0,
+      "3": 0.0
+    },
+    "intra_per_cluster_spearman": {
+      "0": 0.19269153512352621,
+      "1": 0.14065279873508135,
+      "2": 0.1057558155993387,
+      "3": 0.14143382120595552
+    },
+    "intra_per_cluster_spearman_p": {
+      "0": 0.0,
+      "1": 8.172334880201023e-176,
+      "2": 8.031755963547347e-100,
+      "3": 8.889439600615478e-178
+    },
+    "algorithm": "kmedoids"
+  },
+  {
+    "tag": "gmm",
+    "n_clusters_used": 4,
+    "intra_corr_pearson_mean": 0.09582547727040946,
+    "intra_corr_pearson_mean_p": 0.0013533530291799495,
+    "intra_corr_spearman_mean": 0.09671683595271263,
+    "intra_corr_spearman_mean_p": 1.8791602954860628e-14,
+    "inter_corr_pearson_mean": 0.2250204924494028,
+    "inter_corr_pearson_mean_p": 6.467009798042748e-12,
+    "inter_corr_spearman_mean": 0.22743740974972457,
+    "inter_corr_spearman_mean_p": 1.3397694974410004e-10,
+    "intra_per_cluster_pearson": {
+      "0": 0.15011408925056458,
+      "1": -0.03658026456832886,
+      "2": 0.013906802050769329,
+      "3": 0.2558612823486328
+    },
+    "intra_per_cluster_pearson_p": {
+      "0": 0.0,
+      "1": 2.518450400480765e-13,
+      "2": 0.005413412116467953,
+      "3": 0.0
+    },
+    "intra_per_cluster_spearman": {
+      "0": 0.14655693302605294,
+      "1": -0.06192154058043127,
+      "2": 0.037381615675736266,
+      "3": 0.26485033568949257
+    },
+    "intra_per_cluster_spearman_p": {
+      "0": 7.192483284930807e-191,
+      "1": 2.7746355596610556e-35,
+      "2": 7.516641181944251e-14,
+      "3": 0.0
+    },
+    "algorithm": "gmm"
+  }
+]

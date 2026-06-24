@@ -171,6 +171,8 @@ def main():
             random_seed=config.RANDOM_SEED,
             run_shap=config.RUN_SHAP,
             shap_max_samples=config.SHAP_MAX_SAMPLES,
+            cv_val_fraction=config.CV_VAL_FRACTION,
+            top_n=config.SUPERVISED_TOP_N,
         )
 
     # 6. Save results
@@ -199,12 +201,9 @@ def main():
     print(f"  Pipeline complete in {elapsed:.1f}s")
     print(f"{'='*70}")
 
-    if config.PLOT:
-        print("\n[Plotting] Generating plots from results")
-
-        plot(config.RESULTS_DIR)
-
-        print(f"[Plotting] Plots saved in {config.RESULTS_DIR}/plots")
+    print("\n[Plotting] Generating summary and plots from results")
+    plot(config.RESULTS_DIR, config.PLOT)
+    print(f"[Plotting] Plots saved in {config.RESULTS_DIR}/plots")
 
 
 if __name__ == "__main__":

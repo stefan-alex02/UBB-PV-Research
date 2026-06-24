@@ -123,13 +123,13 @@ def plot_projections(d: dict):
 
     # Compute PCA (fast) and t-SNE (slower but better topology)
     pca2 = PCA(n_components=2, random_state=42).fit_transform(Z)
-    print("  Computing t-SNE …")
+    print("  Computing t-SNE ...")
     tsne2 = TSNE(n_components=2, random_state=42, perplexity=40, max_iter=500).fit_transform(Z)
 
     for alg, labels in labels_dict.items():
         fig, axes = plt.subplots(1, 2, figsize=(13, 5))
         fig.suptitle(
-            f"2-D Projections — embedding: {emb_method}, clustering: {alg.upper()}",
+            f"2-D Projections for embedding: {emb_method}, clustering: {alg.upper()}",
             fontsize=12, fontweight="bold"
         )
 
@@ -191,7 +191,7 @@ def plot_cluster_sizes(d: dict):
             # Label the bars with their counts (numbers placed to the right)
             ax.bar_label(bars, fmt="%d", padding=4, fontsize=8)
             n_noise = int(df.loc[df["cluster"] == -1, "size"].sum()) if -1 in df["cluster"].values else 0
-            ax.set_title(f"Cluster sizes (top 20) — {alg.upper()}\n"
+            ax.set_title(f"Cluster sizes (top 20) ({alg.upper()})\n"
                          f"Total clusters: {n_clusters}  |  Noise: {n_noise}", fontweight="bold")
         else:
             colors = ["lightgrey" if r["cluster"] == -1 else cmap(j % 10)
@@ -201,7 +201,7 @@ def plot_cluster_sizes(d: dict):
             ax.bar_label(bars, fmt="%d", fontsize=8)
             ax.set_xlabel("Cluster")
             ax.set_ylabel("Number of samples")
-            ax.set_title(f"Cluster sizes — {alg.upper()}", fontweight="bold")
+            ax.set_title(f"Cluster sizes ({alg.upper()})", fontweight="bold")
 
         plt.tight_layout()
         fpath = out(d["dir"], f"cluster_sizes_{alg}.png")
@@ -246,7 +246,7 @@ def plot_silhouette(d: dict):
         ax.set_yticks(yticks)
         ax.set_yticklabels(yticklabels, fontsize=8)
         ax.set_xlabel("Silhouette coefficient")
-        ax.set_title(f"Silhouette analysis — {alg.upper()}", fontweight="bold")
+        ax.set_title(f"Silhouette analysis ({alg.upper()})", fontweight="bold")
         ax.legend()
 
         plt.tight_layout()
@@ -267,9 +267,9 @@ def plot_cluster_metrics(d: dict):
         return
 
     notes = {
-        "silhouette":        "↑ higher is better  (−1 to 1)",
-        "davies_bouldin":    "↓ lower is better",
-        "calinski_harabasz": "↑ higher is better",
+        "silhouette":        "higher is better (range -1 to 1)",
+        "davies_bouldin":    "lower is better",
+        "calinski_harabasz": "higher is better",
     }
 
     for _, row in df.iterrows():
@@ -284,7 +284,7 @@ def plot_cluster_metrics(d: dict):
             ax.set_title(f"{col.replace('_', ' ').title()}\n{notes.get(col,'')}",
                          fontweight="bold", fontsize=10)
             ax.set_ylabel(col)
-        fig.suptitle(f"Cluster quality metrics — {alg.upper()}", fontweight="bold")
+        fig.suptitle(f"Cluster quality metrics ({alg.upper()})", fontweight="bold")
         plt.tight_layout()
         fpath = out(d["dir"], f"cluster_metrics_{alg}.png")
         plt.savefig(fpath, bbox_inches="tight")
@@ -316,7 +316,7 @@ def plot_distance_distributions(d: dict, n_pairs: int = 4000, seed: int = 42):
         ax.hist(dists[~same], bins=60, alpha=0.65, label="Inter-cluster",  color="#DD8452", density=True)
         ax.set_xlabel("Euclidean distance in embedding space")
         ax.set_ylabel("Density")
-        ax.set_title(f"Distance distribution — {alg.upper()}", fontweight="bold")
+        ax.set_title(f"Distance distribution ({alg.upper()})", fontweight="bold")
         ax.legend()
 
         plt.tight_layout()
@@ -335,16 +335,16 @@ def plot_correlation_summary(d: dict):
         return
 
     notes = {
-        "Pearson r":         "↓ more negative → distances reflect clusters better",
-        "Spearman ρ":        "↓ more negative → distances reflect clusters better",
-        "Intra/Inter ratio": "↓ lower → more compact / separated clusters",
+        "Pearson r":         "more negative means distances reflect clusters better",
+        "Spearman rho":        "more negative means distances reflect clusters better",
+        "Intra/Inter ratio": "lower means more compact and separated clusters",
     }
 
     for r in corr_list:
         alg = r.get("algorithm", r.get("tag", "?"))
         vals = {}
         if "pearson_r"        in r: vals["Pearson r"]          = r["pearson_r"]
-        if "spearman_rho"     in r: vals["Spearman ρ"]         = r["spearman_rho"]
+        if "spearman_rho"     in r: vals["Spearman rho"]         = r["spearman_rho"]
         if "intra_inter_ratio"in r: vals["Intra/Inter ratio"]  = r["intra_inter_ratio"]
         if not vals:
             continue
@@ -359,7 +359,7 @@ def plot_correlation_summary(d: dict):
             ax.bar_label(bars, fmt="%.4f", fontsize=10)
             ax.axhline(0, color="black", linewidth=0.8, linestyle="--")
             ax.set_title(f"{col}\n{notes.get(col,'')}", fontweight="bold", fontsize=9)
-        fig.suptitle(f"Internal correlation (geometry vs cluster) — {alg.upper()}",
+        fig.suptitle(f"Internal correlation ({alg.upper()})",
                      fontweight="bold")
         plt.tight_layout()
         fpath = out(d["dir"], f"correlation_summary_{alg}.png")
@@ -384,7 +384,7 @@ def plot_feature_importance(d: dict):
         title = "ReliefF Feature Weights"
     elif method == "univariate_fs" and "scores" in meta:
         importance_key = "scores"
-        title = "Univariate FS — F-scores"
+        title = "Univariate FS (F-scores)"
     else:
         return  # not a FS method or data not saved
 
@@ -399,7 +399,7 @@ def plot_feature_importance(d: dict):
     ax.set_yticks(range(top_n))
     ax.set_yticklabels(top_labels[::-1], fontsize=8)
     ax.set_xlabel("Score / Importance")
-    ax.set_title(f"{title} — top {top_n}", fontweight="bold")
+    ax.set_title(f"{title} (top {top_n})", fontweight="bold")
 
     plt.tight_layout()
     fpath = out(d["dir"], "feature_importance.png")
@@ -408,7 +408,7 @@ def plot_feature_importance(d: dict):
     print(f"  Saved: {fpath}")
 
 
-# 8. Embedding dimension statistics (mean ± std per dimension)
+# 8. Embedding dimension statistics (mean +/- std per dimension)
 
 def plot_embedding_stats(d: dict):
     Z = d["Z"]
@@ -439,7 +439,7 @@ def plot_embedding_stats(d: dict):
 def plot_embedding_correlation(d: dict):
     Z = d["Z"]
     if Z.shape[1] > 64:
-        print(f"  [Skip] Embedding dim {Z.shape[1]} > 64 — skipping correlation heatmap.")
+        print(f"  [Skip] Embedding dim {Z.shape[1]} > 64 - skipping correlation heatmap.")
         return
 
     corr_mat = np.corrcoef(Z.T)
@@ -516,8 +516,8 @@ def plot_external_correlation(d: dict):
         ax.set_xticklabels([f"{g}-cluster" for g in groups])
         ax.axhline(0, color="black", linewidth=0.8)
         ax.set_ylabel("Correlation")
-        ax.set_title(f"External correlation — {alg.upper()}\n"
-                     f"corr(embedding dist, |Δy|); higher = geometry tracks target",
+        ax.set_title(f"External correlation ({alg.upper()})\n"
+                     f"higher = geometry tracks target",
                      fontweight="bold", fontsize=10)
         ax.legend()
 
@@ -544,7 +544,7 @@ def plot_homogeneity(d: dict):
         ax.bar_label(bars, fmt="%.3f", fontsize=11)
         ax.set_ylim(0, 1)
         ax.set_ylabel("Homogeneity")
-        ax.set_title(f"Homogeneity vs y-classes — {alg.upper()}\n(↑ better, 0–1)",
+        ax.set_title(f"Homogeneity vs y-classes ({alg.upper()})\nhigher is better, 0-1",
                      fontweight="bold", fontsize=10)
         plt.tight_layout()
         fpath = out(d["dir"], f"homogeneity_{alg}.png")
@@ -597,8 +597,8 @@ def plot_supervised_scores(d: dict):
     model_name = sup.get("model", "model")
     summary = sup["cv_summary"]
     folds = sup.get("cv_folds", [])
-    metrics = [("r2", "R²  (↑ better)"), ("mae", "MAE  (↓ better)"),
-               ("rmse", "RMSE  (↓ better)"), ("nrmse", "NRMSE  (↓ better)")]
+    metrics = [("r2", "R2 (higher better)"), ("mae", "MAE (lower better)"),
+               ("rmse", "RMSE (lower better)"), ("nrmse", "NRMSE (lower better)")]
 
     fig, axes = plt.subplots(1, len(metrics), figsize=(3.5 * len(metrics), 4))
     if len(metrics) == 1:
@@ -606,9 +606,9 @@ def plot_supervised_scores(d: dict):
 
     for ax, (key, label) in zip(axes, metrics):
         mean = summary.get(f"{key}_mean", float("nan"))
-        std  = summary.get(f"{key}_std", 0.0)
-        # Bar = CV mean ± std; overlay per-fold points to show the trend across time.
-        bar = ax.bar(["CV mean"], [mean], yerr=[std], capsize=6,
+        ci   = summary.get(f"{key}_ci95", summary.get(f"{key}_std", 0.0))
+        # Bar shows the CV mean with a 95% confidence interval; points show each fold.
+        bar = ax.bar(["CV mean"], [mean], yerr=[ci], capsize=6,
                      color="#4C72B0", edgecolor="white", width=0.5)
         ax.bar_label(bar, fmt="%.3f", fontsize=9, padding=3)
         if folds:
@@ -618,8 +618,8 @@ def plot_supervised_scores(d: dict):
             ax.legend(fontsize=7)
         ax.set_title(label, fontweight="bold")
         ax.set_ylabel(key)
-    fig.suptitle(f"Supervised forecast probe ({model_name}) on embeddings — time-series CV",
-                 fontweight="bold")
+    fig.suptitle(f"Supervised forecast probe ({model_name}) on embeddings, time series CV "
+                 f"(error bars: 95% CI)", fontweight="bold")
 
     plt.tight_layout()
     fpath = out(d["dir"], "supervised_scores.png")
@@ -628,36 +628,146 @@ def plot_supervised_scores(d: dict):
     print(f"  Saved: {fpath}")
 
 
-# 15. Supervised probe: feature importance (raw, per original column)
+def _barh_top(values_by_name, top_n, title, xlabel, fname, d, color="#4C72B0"):
+    """Generic horizontal bar chart of the top_n entries of a name to value dict."""
+    if not values_by_name:
+        return
+    items = sorted(values_by_name.items(), key=lambda kv: kv[1], reverse=True)[:top_n]
+    names = [k for k, _ in items]
+    vals  = [v for _, v in items]
+
+    fig, ax = plt.subplots(figsize=(9, max(4, len(names) * 0.4)))
+    ax.barh(range(len(names)), vals[::-1], color=color, edgecolor="white")
+    ax.set_yticks(range(len(names)))
+    ax.set_yticklabels(names[::-1], fontsize=9)
+    ax.set_xlabel(xlabel)
+    ax.set_title(title, fontweight="bold", fontsize=10)
+
+    plt.tight_layout()
+    fpath = out(d["dir"], fname)
+    plt.savefig(fpath, bbox_inches="tight")
+    plt.close()
+    print(f"  Saved: {fpath}")
+
 
 def plot_supervised_importance(d: dict):
+    """Top original columns (averaged over time steps) by permutation importance and,
+    separately, by SHAP. Also the raw time step specific features for each."""
     sup = d.get("supervised")
-    if not sup or "importances_by_column" not in sup:
+    if not sup:
+        return
+    model_name = sup.get("model", "model")
+    top_n = sup.get("top_n", 15)
+    names = sup.get("feature_names", [])
+
+    # Permutation importance, aggregated to original columns
+    perm_by_col = sup.get("importances_by_column")
+    if perm_by_col:
+        _barh_top(perm_by_col, top_n,
+                  f"Top columns by permutation importance, {model_name}\n"
+                  f"(averaged over window time steps)",
+                  "Permutation importance (drop in R2)",
+                  "supervised_importance_columns.png", d)
+
+    # Permutation importance, raw time step specific features
+    perm = sup.get("importances")
+    if perm and names and len(perm) == len(names):
+        raw_map = {names[i]: float(perm[i]) for i in range(len(names))}
+        _barh_top(raw_map, top_n,
+                  f"Top raw time step features by permutation importance, {model_name}",
+                  "Permutation importance (drop in R2)",
+                  "supervised_importance_raw_timesteps.png", d)
+
+    # SHAP, aggregated to original columns
+    shap_by_col = sup.get("shap_by_column")
+    if shap_by_col:
+        _barh_top(shap_by_col, top_n,
+                  f"Top columns by SHAP, {model_name}\n"
+                  f"(averaged over window time steps)",
+                  "Mean absolute SHAP value",
+                  "supervised_shap_columns.png", d, color="#55A868")
+
+    # SHAP, raw time step specific features
+    shap_raw = sup.get("shap_mean_abs")
+    if shap_raw and names and len(shap_raw) == len(names):
+        raw_map = {names[i]: float(shap_raw[i]) for i in range(len(names))}
+        _barh_top(raw_map, top_n,
+                  f"Top raw time step features by SHAP, {model_name}",
+                  "Mean absolute SHAP value",
+                  "supervised_shap_raw_timesteps.png", d, color="#55A868")
+
+
+def plot_supervised_training_curves(d: dict):
+    """Per fold training (and internal validation) curves, where the model produces
+    them: xgboost RMSE per boosting round, or MLP loss per epoch. Random forest has
+    no iterative curve and is skipped."""
+    sup = d.get("supervised")
+    if not sup:
+        return
+    histories = sup.get("cv_fold_histories") or []
+    if not histories:
         return
 
     model_name = sup.get("model", "model")
+    metric_name = histories[0].get("curve_metric", "loss")
 
-    # Prefer SHAP-by-column if available, else permutation importance.
-    use_shap = sup.get("shap_by_column") is not None
-    by_col = sup.get("shap_by_column") if use_shap else sup.get("importances_by_column")
-    if not by_col:
-        return
-    kind = "mean |SHAP|" if use_shap else "permutation importance (ΔR²)"
+    fig, ax = plt.subplots(figsize=(8, 5))
+    cmap = plt.get_cmap("tab10", max(len(histories), 2))
+    for i, h in enumerate(histories):
+        it = h.get("iterations", [])
+        tr = h.get("train_curve")
+        va = h.get("val_curve")
+        color = cmap(i)
+        fold = h.get("fold", i + 1)
+        if tr:
+            ax.plot(it, tr, color=color, linewidth=1.6, label=f"fold {fold} train")
+        if va and h.get("val_curve_metric") != "r2":
+            # same scale as train (e.g. xgboost rmse): plot dashed
+            ax.plot(it, va, color=color, linewidth=1.4, linestyle="--",
+                    label=f"fold {fold} val")
 
-    cols = sorted(by_col, key=lambda c: by_col[c], reverse=True)
-    vals = [by_col[c] for c in cols]
-
-    fig, ax = plt.subplots(figsize=(9, max(4, len(cols) * 0.4)))
-    ax.barh(range(len(cols)), vals[::-1], color="#4C72B0", edgecolor="white")
-    ax.set_yticks(range(len(cols)))
-    ax.set_yticklabels(cols[::-1], fontsize=9)
-    ax.set_xlabel(f"{kind} (averaged over window time steps)")
-    ax.set_title(f"Raw-feature importance per original column — {model_name}\n"
-                 f"(core model trained on embeddings; attributed to raw inputs via wrapper)",
+    ax.set_xlabel("iteration (boosting round or epoch)")
+    ax.set_ylabel(metric_name)
+    ax.set_title(f"Per fold training curves, {model_name}\n"
+                 f"(internal time ordered validation tail; dashed = validation)",
                  fontweight="bold", fontsize=10)
+    ax.legend(fontsize=7, ncol=2)
 
     plt.tight_layout()
-    fpath = out(d["dir"], "supervised_importance.png")
+    fpath = out(d["dir"], "supervised_training_curves.png")
+    plt.savefig(fpath, bbox_inches="tight")
+    plt.close()
+    print(f"  Saved: {fpath}")
+
+
+def plot_supervised_fold_trend(d: dict):
+    """How each metric evolves across the time ordered CV folds. Useful to see whether
+    forecast quality improves as the training window grows."""
+    sup = d.get("supervised")
+    if not sup:
+        return
+    folds = sup.get("cv_folds") or []
+    if not folds:
+        return
+    model_name = sup.get("model", "model")
+
+    fold_ids = [f["fold"] for f in folds]
+    metrics = [("r2", "R2"), ("nrmse", "NRMSE")]
+
+    fig, ax1 = plt.subplots(figsize=(8, 4.5))
+    ax2 = ax1.twinx()
+    l1 = ax1.plot(fold_ids, [f["r2"] for f in folds], "o-", color="#4C72B0", label="R2")
+    l2 = ax2.plot(fold_ids, [f["nrmse"] for f in folds], "s--", color="#DD8452", label="NRMSE")
+    ax1.set_xlabel("CV fold (chronological, training window grows)")
+    ax1.set_ylabel("R2", color="#4C72B0")
+    ax2.set_ylabel("NRMSE", color="#DD8452")
+    ax1.set_xticks(fold_ids)
+    ax1.set_title(f"Forecast quality across CV folds, {model_name}", fontweight="bold")
+    lines = l1 + l2
+    ax1.legend(lines, [ln.get_label() for ln in lines], fontsize=8, loc="best")
+
+    plt.tight_layout()
+    fpath = out(d["dir"], "supervised_fold_trend.png")
     plt.savefig(fpath, bbox_inches="tight")
     plt.close()
     print(f"  Saved: {fpath}")
@@ -667,46 +777,89 @@ def plot_supervised_importance(d: dict):
 
 def print_summary_table(d: dict):
     cfg = d["config"]
-    print("\n" + "=" * 60)
-    print("  PIPELINE SUMMARY")
-    print("=" * 60)
-    print(f"  Embedding method  : {cfg.get('EMBEDDING_METHOD')}")
-    print(f"  Window size (k)   : {cfg.get('WINDOW_SIZE')}")
-    print(f"  Normalization     : {cfg.get('NORMALIZATION')}")
-    print(f"  Distance metric   : {cfg.get('DISTANCE_METRIC')}")
-    print(f"  Embedding shape   : {d['Z'].shape}")
-    print()
+    lines = []
+    lines.append("")
+    lines.append("=" * 60)
+    lines.append("  PIPELINE SUMMARY")
+    lines.append("=" * 60)
+    lines.append(f"  Embedding method  : {cfg.get('EMBEDDING_METHOD')}")
+    lines.append(f"  Window size (k)   : {cfg.get('WINDOW_SIZE')}")
+    lines.append(f"  Normalization     : {cfg.get('NORMALIZATION')}")
+    lines.append(f"  Distance metric   : {cfg.get('DISTANCE_METRIC')}")
+    lines.append(f"  Embedding shape   : {d['Z'].shape}")
+    lines.append("")
+    lines.append("  Clustering metrics:")
+    lines.append(d["cluster_metrics"].to_string(index=False))
+    lines.append("")
+    lines.append("  Correlation analysis (internal - geometry vs cluster):")
 
-    print("  Clustering metrics:")
-    print(d["cluster_metrics"].to_string(index=False))
-    print()
-
-    print("  Correlation analysis (internal — geometry vs cluster):")
     for r in d["correlation"]:
         alg = r.get("algorithm", r.get("tag", "?"))
         parts = [f"    [{alg}]"]
-        if "pearson_r"         in r: parts.append(f"Pearson r={r['pearson_r']:.4f}")
-        if "spearman_rho"      in r: parts.append(f"Spearman ρ={r['spearman_rho']:.4f}")
-        if "intra_inter_ratio" in r: parts.append(f"Intra/Inter={r['intra_inter_ratio']:.4f}")
-        print("  ".join(parts))
+        if "pearson_r" in r:
+            parts.append(f"Pearson r={r['pearson_r']:.4f}")
+        if "spearman_rho" in r:
+            parts.append(f"Spearman rho={r['spearman_rho']:.4f}")
+        if "intra_inter_ratio" in r:
+            parts.append(f"Intra/Inter={r['intra_inter_ratio']:.4f}")
+        lines.append("  ".join(parts))
 
     if d.get("external"):
-        print("\n  External correlation (target-aware — embedding dist vs |Δy|):")
+        lines.append("")
+        lines.append("  External correlation (target-aware - embedding dist vs |dy|):")
         for r in d["external"]:
             alg = r.get("algorithm", r.get("tag", "?"))
-            print(f"    [{alg}]  Intra(P)={r.get('intra_corr_pearson_mean', float('nan')):.4f}  "
-                  f"Inter(P)={r.get('inter_corr_pearson_mean', float('nan')):.4f}  "
-                  f"Intra(S)={r.get('intra_corr_spearman_mean', float('nan')):.4f}  "
-                  f"Inter(S)={r.get('inter_corr_spearman_mean', float('nan')):.4f}")
+            lines.append(
+                f"    [{alg}]  Intra(P)={r.get('intra_corr_pearson_mean', float('nan')):.4f}  "
+                f"Inter(P)={r.get('inter_corr_pearson_mean', float('nan')):.4f}  "
+                f"Intra(S)={r.get('intra_corr_spearman_mean', float('nan')):.4f}  "
+                f"Inter(S)={r.get('inter_corr_spearman_mean', float('nan')):.4f}"
+            )
 
     if "homogeneity" in d["cluster_metrics"].columns:
-        print("\n  Homogeneity (vs y-classes):")
+        lines.append("")
+        lines.append("  Homogeneity (vs y-classes):")
         for _, row in d["cluster_metrics"].iterrows():
-            print(f"    [{row['algorithm']}]  Homogeneity={row['homogeneity']:.4f}")
-    print("=" * 60)
+            lines.append(f"    [{row['algorithm']}]  Homogeneity={row['homogeneity']:.4f}")
+
+    sup = d.get("supervised")
+    if sup and sup.get("cv_summary"):
+        s = sup["cv_summary"]
+        lines.append("")
+        lines.append(f"  Supervised forecast probe (model={sup.get('model','?')}, "
+                     f"trained on embeddings, time series CV):")
+        def _fmt(key, label):
+            mean = s.get(f"{key}_mean", float('nan'))
+            ci   = s.get(f"{key}_ci95", 0.0)
+            return f"{label}={mean:.4f} +/- {ci:.4f}"
+        lines.append("    " + "   ".join([
+            _fmt("r2", "R2"), _fmt("mae", "MAE"),
+            _fmt("rmse", "RMSE"), _fmt("nrmse", "NRMSE"),
+        ]) + "   (means +/- 95% CI)")
+
+        top_imp = sup.get("top_importance_columns")
+        if top_imp:
+            names = ", ".join(f"{e['name']}({e['value']:.3f})" for e in top_imp[:5])
+            lines.append(f"    Top columns by permutation importance: {names}")
+        top_shap = sup.get("top_shap_columns")
+        if top_shap:
+            names = ", ".join(f"{e['name']}({e['value']:.3f})" for e in top_shap[:5])
+            lines.append(f"    Top columns by SHAP: {names}")
+
+    lines.append("=" * 60)
+
+    summary_text = "\n".join(lines)
+    print(summary_text)
+
+    summary_path = os.path.join(d["dir"], "pipeline_summary.txt")
+    with open(summary_path, "w", encoding="utf-8") as f:
+        f.write(summary_text + "\n")
+    print(f"  Saved: {summary_path}")
 
 
-def plot(results_dir: str = None):
+def plot(results_dir: str = None, generate_plots: bool = True):
+    if results_dir is None:
+        results_dir = sys.argv[1] if len(sys.argv) > 1 else "results"
     if not os.path.isdir(results_dir):
         print(f"Error: '{results_dir}' is not a directory.")
         sys.exit(1)
@@ -716,22 +869,25 @@ def plot(results_dir: str = None):
 
     print_summary_table(d)
 
-    print("\nGenerating plots …")
-    plot_projections(d)
-    plot_cluster_sizes(d)
-    plot_silhouette(d)
-    plot_cluster_metrics(d)
-    plot_distance_distributions(d)
-    plot_correlation_summary(d)
-    plot_feature_importance(d)
-    plot_embedding_stats(d)
-    plot_embedding_correlation(d)
-    plot_training_history(d)
-    plot_external_correlation(d)
-    plot_homogeneity(d)
-    plot_target_distribution(d)
-    plot_supervised_scores(d)
-    plot_supervised_importance(d)
+    if generate_plots:
+        print("\nGenerating plots ...")
+        plot_projections(d)
+        plot_cluster_sizes(d)
+        plot_silhouette(d)
+        plot_cluster_metrics(d)
+        plot_distance_distributions(d)
+        plot_correlation_summary(d)
+        plot_feature_importance(d)
+        plot_embedding_stats(d)
+        plot_embedding_correlation(d)
+        plot_training_history(d)
+        plot_external_correlation(d)
+        plot_homogeneity(d)
+        plot_target_distribution(d)
+        plot_supervised_scores(d)
+        plot_supervised_importance(d)
+        plot_supervised_training_curves(d)
+        plot_supervised_fold_trend(d)
 
     print(f"\nAll plots saved to: {os.path.join(results_dir, 'plots')}/")
 

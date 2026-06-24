@@ -3,10 +3,10 @@ Pipeline configuration. Edit this file to change hyperparameters and technique c
 """
 from datetime import datetime
 
-EXP_NAME = "win3_latest_y_smaller_ae_no_gmm"
+EXP_NAME = "win1_latest_y_smaller_ae_no_gmm"
 
 # Windowing
-WINDOW_SIZE = 3   # k: number of consecutive rows per sample
+WINDOW_SIZE = 1   # k: number of consecutive rows per sample
 
 # Windowing mode — how y (target) is associated with each window:
 #   "next_y"   : window keeps ALL columns (incl. SolarGeneration); target y is the
@@ -97,7 +97,7 @@ DISTANCE_METRIC = "euclidean"
 CORRELATION_METHOD = "both"
 
 # Number of pairs to sample for pairwise distance correlation (None = all, can be slow)
-ANALYSIS_SAMPLE_PAIRS = 5000
+ANALYSIS_SAMPLE_PAIRS = 10_000
 
 # External (target-aware) analysis
 # Discretization of y into classes for the Homogeneity metric.
@@ -107,7 +107,7 @@ N_Y_CLASSES        = 4
 LOW_CLASS_FRACTION = 0.05   # 5% of max y is the upper bound of the "low" class
 
 # External intra/inter correlation: cap pairs per cluster (or per cluster-pair) for speed.
-EXT_MAX_PAIRS_PER_GROUP = 20000   # None = use all pairs (can be very slow for big clusters)
+EXT_MAX_PAIRS_PER_GROUP = 40_000   # None = use all pairs (can be very slow for big clusters)
 
 # === Supervised forecasting probe =============================================================
 # A frozen probe: train a regressor to predict y from the (already-computed)
@@ -116,7 +116,7 @@ EXT_MAX_PAIRS_PER_GROUP = 20000   # None = use all pairs (can be very slow for b
 RUN_SUPERVISED = False
 
 # Which model to probe with: "xgboost", "random_forest", "mlp".
-SUPERVISED_MODEL = "xgboost"
+SUPERVISED_MODEL = "random_forest"
 
 
 # Time-series cross-validation folds (expanding-window forward chaining; no shuffling).
@@ -125,6 +125,8 @@ CV_N_SPLITS = 5
 # Explainability
 RUN_SHAP = True          # raw-feature SHAP via KernelSHAP through the embedding wrapper (can be slow)
 SHAP_MAX_SAMPLES = 200   # samples explained by SHAP (cost scales with this; keep modest)
+CV_VAL_FRACTION = 0.15   # tail of each training fold used as internal validation for learning curves (0 disables for xgboost)
+SUPERVISED_TOP_N = 15    # how many top features/columns to store and plot
 
 # --- XGBoost params ---
 XGB_N_ESTIMATORS = 300
@@ -152,5 +154,5 @@ DEVICE = "cuda"   # "cuda" or "cpu"
 DATASET_PATH = "../../data/private_au/Solar_Energy_Generation_CK2.csv"
 TIMESTAMP_COL = "Timestamp"          # Column to drop before processing
 _now = datetime.now() # underscore to avoid saving it in the results json
-RESULTS_DIR   = f"results/{EMBEDDING_METHOD}/{_now.strftime('%Y-%m-%d_%H-%M-%S')}_{EXP_NAME}"
-PLOT = True
+RESULTS_DIR   = f"results/{EMBEDDING_METHOD}/{_now.strftime('%Y-%m-%d_%H-%M')}_{EXP_NAME}"
+PLOT = False

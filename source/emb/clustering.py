@@ -49,7 +49,7 @@ def run_clustering(
         "agglomerative": lambda: _run_agglomerative(
             Z_cluster, params["agg_n_clusters"], params["agg_linkage"],
             distance_metric, params["agg_connectivity"],
-            params["agg_connectivity_param"]),
+            params["agg_connectivity_param"], random_seed),
         "kmedoids": lambda: _run_kmedoids(
             Z_cluster, params["kmedoids_k"], params["kmedoids_metric"],
             params["kmedoids_max_iter"], random_seed, distance_metric),
@@ -93,7 +93,7 @@ def _run_kmeans(Z, k, init, max_iter, seed, metric_name):
     print(f"[K-Means] k={k}, init={init!r}, max_iter={max_iter} …")
     km = KMeans(n_clusters=k, init=init, max_iter=max_iter, random_state=seed, n_init=10)
     labels = km.fit_predict(Z)
-    metrics = _compute_metrics(Z, labels, algorithm="kmeans")
+    metrics = _compute_metrics(Z, labels, algorithm="kmeans", seed=seed)
     metrics["inertia"] = km.inertia_
     metrics["n_clusters"] = k
     print(f"[K-Means] Inertia={km.inertia_:.4f}  |  {_fmt_metrics(metrics)}")
@@ -107,7 +107,7 @@ def _run_dbscan(Z, eps, min_samples, seed, metric_name):
     n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
     n_noise = (labels == -1).sum()
     print(f"[DBSCAN] Clusters found: {n_clusters}  |  Noise points: {n_noise}")
-    metrics = _compute_metrics(Z, labels, algorithm="dbscan")
+    metrics = _compute_metrics(Z, labels, algorithm="dbscan", seed=seed)
     metrics["n_clusters"] = n_clusters
     metrics["n_noise"] = n_noise
     print(f"[DBSCAN] {_fmt_metrics(metrics)}")
@@ -133,7 +133,7 @@ def _build_connectivity(Z, kind, param):
 
 
 def _run_agglomerative(Z, n_clusters, linkage, metric_name,
-                       connectivity="none", connectivity_param=15):
+                       connectivity="none", connectivity_param=15, seed=None):
     """
     Hierarchical agglomerative clustering (bottom-up merging).
 
@@ -162,7 +162,7 @@ def _run_agglomerative(Z, n_clusters, linkage, metric_name,
                   f"for 'knn', try 10–30).")
     agg = AgglomerativeClustering(n_clusters=n_clusters, linkage=linkage, connectivity=conn)
     labels = agg.fit_predict(Z)
-    metrics = _compute_metrics(Z, labels, algorithm="agglomerative")
+    metrics = _compute_metrics(Z, labels, algorithm="agglomerative", seed=seed)
     metrics["n_clusters"] = len(set(labels))
     print(f"[Agglomerative] {_fmt_metrics(metrics)}")
     return {"labels": labels, "metrics": metrics, "model": agg}
@@ -200,7 +200,7 @@ def _run_kmedoids(Z, k, metric, max_iter, seed, metric_name):
             break
         medoids, labels = new_medoids, new_labels
 
-    metrics = _compute_metrics(Z, labels, algorithm="kmedoids")
+    metrics = _compute_metrics(Z, labels, algorithm="kmedoids", seed=seed)
     metrics["n_clusters"] = k
     metrics["inertia"] = float(D[np.arange(n), labels].sum())  # total cost to medoids
     print(f"[K-Medoids] Cost={metrics['inertia']:.4f}  |  {_fmt_metrics(metrics)}")
@@ -217,7 +217,7 @@ def _run_gmm(Z, n_components, covariance_type, seed, metric_name):
     gmm = GaussianMixture(n_components=n_components, covariance_type=covariance_type,
                           random_state=seed, n_init=3)
     labels = gmm.fit_predict(Z)
-    metrics = _compute_metrics(Z, labels, algorithm="gmm")
+    metrics = _compute_metrics(Z, labels, algorithm="gmm", seed=seed)
     metrics["n_clusters"] = len(set(labels))
     metrics["bic"] = float(gmm.bic(Z))
     metrics["aic"] = float(gmm.aic(Z))
@@ -227,14 +227,14 @@ def _run_gmm(Z, n_components, covariance_type, seed, metric_name):
 
 # Internal metrics
 
-def _compute_metrics(Z: np.ndarray, labels: np.ndarray, algorithm: str) -> dict:
+def _compute_metrics(Z: np.ndarray, labels: np.ndarray, algorithm: str, seed: int = None) -> dict:
     """Compute silhouette, Davies-Bouldin, Calinski-Harabasz where applicable."""
     metrics = {}
     unique = set(labels) - {-1}   # Exclude DBSCAN noise label
     if len(unique) >= 2:
         mask = labels != -1
         try:
-            metrics["silhouette"]          = silhouette_score(Z[mask], labels[mask], sample_size=min(5000, mask.sum()))
+            metrics["silhouette"]          = silhouette_score(Z[mask], labels[mask], random_state=seed)
             metrics["davies_bouldin"]      = davies_bouldin_score(Z[mask], labels[mask])
             metrics["calinski_harabasz"]   = calinski_harabasz_score(Z[mask], labels[mask])
         except Exception as e:

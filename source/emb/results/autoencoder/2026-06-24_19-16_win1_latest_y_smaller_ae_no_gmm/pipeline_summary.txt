@@ -1,0 +1,31 @@
+
+============================================================
+  PIPELINE SUMMARY
+============================================================
+  Embedding method  : autoencoder
+  Window size (k)   : 1
+  Normalization     : standard
+  Distance metric   : euclidean
+  Embedding shape   : (68093, 8)
+
+  Clustering metrics:
+    algorithm  silhouette  davies_bouldin  calinski_harabasz   inertia  n_clusters  homogeneity
+       kmeans    0.548340        0.843844       29617.428123 5480693.0           4     0.138502
+agglomerative    0.489013        0.978633       25824.315665       NaN           4     0.081296
+     kmedoids    0.269264        1.625396       16205.785940  492903.5           4     0.040968
+
+  Correlation analysis (internal - geometry vs cluster):
+    [kmeans]  Pearson r=-0.7135  Spearman rho=-0.7252  Intra/Inter=0.3051
+    [agglomerative]  Pearson r=-0.6578  Spearman rho=-0.6720  Intra/Inter=0.3355
+    [kmedoids]  Pearson r=-0.3754  Spearman rho=-0.4392  Intra/Inter=0.4906
+
+  External correlation (target-aware - embedding dist vs |dy|):
+    [kmeans]  Intra(P)=0.1794  Inter(P)=0.1126  Intra(S)=0.1869  Inter(S)=0.1362
+    [agglomerative]  Intra(P)=0.2224  Inter(P)=0.1326  Intra(S)=0.2301  Inter(S)=0.1616
+    [kmedoids]  Intra(P)=0.2862  Inter(P)=0.2785  Intra(S)=0.3090  Inter(S)=0.2756
+
+  Homogeneity (vs y-classes):
+    [kmeans]  Homogeneity=0.1385
+    [agglomerative]  Homogeneity=0.0813
+    [kmedoids]  Homogeneity=0.0410
+============================================================

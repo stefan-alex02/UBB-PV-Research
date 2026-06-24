@@ -1,0 +1,50 @@
+[
+  {
+    "tag": "kmeans",
+    "n_pairs": 9999,
+    "pearson_r": -0.4766108799065971,
+    "pearson_p": 0.0,
+    "spearman_rho": -0.47896390423444746,
+    "spearman_p": 0.0,
+    "intra_mean_dist": 7.523355960845947,
+    "inter_mean_dist": 10.780134201049805,
+    "intra_inter_ratio": 0.6978907585144043,
+    "algorithm": "kmeans"
+  },
+  {
+    "tag": "agglomerative",
+    "n_pairs": 10000,
+    "pearson_r": -0.39466699887033113,
+    "pearson_p": 0.0,
+    "spearman_rho": -0.3936953568854085,
+    "spearman_p": 0.0,
+    "intra_mean_dist": 8.05401611328125,
+    "inter_mean_dist": 10.696361541748047,
+    "intra_inter_ratio": 0.7529678344726562,
+    "algorithm": "agglomerative"
+  },
+  {
+    "tag": "kmedoids",
+    "n_pairs": 10000,
+    "pearson_r": -0.4798030171591199,
+    "pearson_p": 0.0,
+    "spearman_rho": -0.48130850414756987,
+    "spearman_p": 0.0,
+    "intra_mean_dist": 7.571160316467285,
+    "inter_mean_dist": 10.78654670715332,
+    "intra_inter_ratio": 0.7019076943397522,
+    "algorithm": "kmedoids"
+  },
+  {
+    "tag": "gmm",
+    "n_pairs": 10000,
+    "pearson_r": -0.1602538577793458,
+    "pearson_p": 1.6293829105113315e-58,
+    "spearman_rho": -0.14944815580577486,
+    "spearman_p": 4.8562737416821186e-51,
+    "intra_mean_dist": 9.278002738952637,
+    "inter_mean_dist": 10.271185874938965,
+    "intra_inter_ratio": 0.9033039212226868,
+    "algorithm": "gmm"
+  }
+]

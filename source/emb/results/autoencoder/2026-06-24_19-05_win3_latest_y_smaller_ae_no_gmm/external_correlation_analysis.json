@@ -1,0 +1,113 @@
+[
+  {
+    "tag": "kmeans",
+    "n_clusters_used": 4,
+    "intra_corr_pearson_mean": 0.16887187771499157,
+    "intra_corr_pearson_mean_p": 0.0,
+    "intra_corr_spearman_mean": 0.1889157183306992,
+    "intra_corr_spearman_mean_p": 4.770994024243444e-132,
+    "inter_corr_pearson_mean": 0.12052060252365966,
+    "inter_corr_pearson_mean_p": 0.15471135648112525,
+    "inter_corr_spearman_mean": 0.1339278027906922,
+    "inter_corr_spearman_mean_p": 0.0032656675824217583,
+    "intra_per_cluster_pearson": {
+      "0": 0.11545703560113907,
+      "1": 0.21343065798282623,
+      "2": 0.18356554210186005,
+      "3": 0.16303427517414093
+    },
+    "intra_per_cluster_pearson_p": {
+      "0": 0.0,
+      "1": 0.0,
+      "2": 0.0,
+      "3": 0.0
+    },
+    "intra_per_cluster_spearman": {
+      "0": 0.1215410890162043,
+      "1": 0.21606833254147778,
+      "2": 0.23435381196318675,
+      "3": 0.18369963980192797
+    },
+    "intra_per_cluster_spearman_p": {
+      "0": 1.9083976096973775e-131,
+      "1": 0.0,
+      "2": 0.0,
+      "3": 1.6267416368677496e-300
+    },
+    "algorithm": "kmeans"
+  },
+  {
+    "tag": "agglomerative",
+    "n_clusters_used": 4,
+    "intra_corr_pearson_mean": 0.2801954820752144,
+    "intra_corr_pearson_mean_p": 0.0,
+    "intra_corr_spearman_mean": 0.273683912608515,
+    "intra_corr_spearman_mean_p": 1.5739083557842643e-135,
+    "inter_corr_pearson_mean": -6.335725386937459e-05,
+    "inter_corr_pearson_mean_p": 3.311765370502447e-05,
+    "inter_corr_spearman_mean": -0.015844992045975236,
+    "inter_corr_spearman_mean_p": 0.00017846971472492193,
+    "intra_per_cluster_pearson": {
+      "0": 0.3020504415035248,
+      "1": 0.38701412081718445,
+      "2": 0.14569053053855896,
+      "3": 0.28602683544158936
+    },
+    "intra_per_cluster_pearson_p": {
+      "0": 0.0,
+      "1": 0.0,
+      "2": 0.0,
+      "3": 0.0
+    },
+    "intra_per_cluster_spearman": {
+      "0": 0.3122425993306447,
+      "1": 0.39321968395312645,
+      "2": 0.1231478641502081,
+      "3": 0.26612550300008064
+    },
+    "intra_per_cluster_spearman_p": {
+      "0": 0.0,
+      "1": 0.0,
+      "2": 6.295633423137057e-135,
+      "3": 0.0
+    },
+    "algorithm": "agglomerative"
+  },
+  {
+    "tag": "kmedoids",
+    "n_clusters_used": 4,
+    "intra_corr_pearson_mean": 0.2432129718363285,
+    "intra_corr_pearson_mean_p": 0.0,
+    "intra_corr_spearman_mean": 0.23298956206487761,
+    "intra_corr_spearman_mean_p": 7.365232878393801e-91,
+    "inter_corr_pearson_mean": 0.09767598464774589,
+    "inter_corr_pearson_mean_p": 0.04426829269567636,
+    "inter_corr_spearman_mean": 0.10001451355112789,
+    "inter_corr_spearman_mean_p": 0.002035275044441381,
+    "intra_per_cluster_pearson": {
+      "0": 0.2108931541442871,
+      "1": 0.2201339304447174,
+      "2": 0.40750643610954285,
+      "3": 0.13431836664676666
+    },
+    "intra_per_cluster_pearson_p": {
+      "0": 0.0,
+      "1": 0.0,
+      "2": 0.0,
+      "3": 0.0
+    },
+    "intra_per_cluster_spearman": {
+      "0": 0.2555190570156578,
+      "1": 0.19604902698317575,
+      "2": 0.3799106569790779,
+      "3": 0.10047950728159906
+    },
+    "intra_per_cluster_spearman_p": {
+      "0": 0.0,
+      "1": 0.0,
+      "2": 0.0,
+      "3": 2.9460931513575203e-90
+    },
+    "algorithm": "kmedoids"
+  }
+]

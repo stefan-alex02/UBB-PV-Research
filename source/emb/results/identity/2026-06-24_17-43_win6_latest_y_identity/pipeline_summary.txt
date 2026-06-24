@@ -1,0 +1,35 @@
+
+============================================================
+  PIPELINE SUMMARY
+============================================================
+  Embedding method  : identity
+  Window size (k)   : 6
+  Normalization     : standard
+  Distance metric   : euclidean
+  Embedding shape   : (68088, 54)
+
+  Clustering metrics:
+    algorithm  silhouette  davies_bouldin  calinski_harabasz      inertia  n_clusters  homogeneity           bic           aic
+       kmeans    0.183987        1.763738       15007.446839 2213229.7500           4     0.271404           NaN           NaN
+agglomerative    0.140646        2.291173       11018.087538          NaN           4     0.251238           NaN           NaN
+     kmedoids    0.182880        1.787477       14704.021860  383550.1875           4     0.274939           NaN           NaN
+          gmm    0.047647        3.647302        3961.435950          NaN           4     0.321006 -9.682594e+06 -9.738816e+06
+
+  Correlation analysis (internal - geometry vs cluster):
+    [kmeans]  Pearson r=-0.4766  Spearman rho=-0.4790  Intra/Inter=0.6979
+    [agglomerative]  Pearson r=-0.3947  Spearman rho=-0.3937  Intra/Inter=0.7530
+    [kmedoids]  Pearson r=-0.4798  Spearman rho=-0.4813  Intra/Inter=0.7019
+    [gmm]  Pearson r=-0.1603  Spearman rho=-0.1494  Intra/Inter=0.9033
+
+  External correlation (target-aware - embedding dist vs |dy|):
+    [kmeans]  Intra(P)=0.1905  Inter(P)=0.1910  Intra(S)=0.1848  Inter(S)=0.2023
+    [agglomerative]  Intra(P)=0.1923  Inter(P)=0.2753  Intra(S)=0.1592  Inter(S)=0.2686
+    [kmedoids]  Intra(P)=0.1833  Inter(P)=0.1842  Intra(S)=0.1829  Inter(S)=0.1937
+    [gmm]  Intra(P)=0.1425  Inter(P)=0.3073  Intra(S)=0.1326  Inter(S)=0.3031
+
+  Homogeneity (vs y-classes):
+    [kmeans]  Homogeneity=0.2714
+    [agglomerative]  Homogeneity=0.2512
+    [kmedoids]  Homogeneity=0.2749
+    [gmm]  Homogeneity=0.3210
+============================================================

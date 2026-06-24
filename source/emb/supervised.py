@@ -87,32 +87,127 @@ def _metrics(y_true, y_pred, y_range):
     }
 
 
+# Per fold training (with optional internal validation curve)
+
+def _fit_capture_history(model_name, params, random_seed, Z_tr, y_tr, val_fraction):
+    """
+    Fit a fresh model on the training fold and, where the model supports it, capture
+    a per iteration training curve (and a validation curve from a time ordered tail
+    split of the training fold).
+
+    The validation slice is the most recent `val_fraction` of the training fold (kept
+    in chronological order, never shuffled) so it does not leak future information.
+
+    Returns (fitted_model, history) where history is a dict with optional keys
+    'iterations', 'train_curve', 'val_curve', or empty if the model has no curve.
+    """
+    history = {}
+
+    # Build the internal time ordered validation tail (used by xgboost/mlp curves).
+    n = len(Z_tr)
+    use_val = val_fraction and val_fraction > 0.0 and n > 20
+    if use_val:
+        n_val = max(1, int(round(n * val_fraction)))
+        tr_idx = np.arange(0, n - n_val)
+        va_idx = np.arange(n - n_val, n)
+    else:
+        tr_idx = np.arange(0, n)
+        va_idx = None
+
+    if model_name == "xgboost":
+        import xgboost as xgb
+        model = xgb.XGBRegressor(
+            n_estimators=params.get("xgb_n_estimators", 300),
+            max_depth=params.get("xgb_max_depth", 6),
+            learning_rate=params.get("xgb_learning_rate", 0.1),
+            subsample=params.get("xgb_subsample", 0.9),
+            n_jobs=-1, random_state=random_seed, verbosity=0,
+            eval_metric="rmse",
+        )
+        if use_val:
+            model.fit(Z_tr[tr_idx], y_tr[tr_idx],
+                      eval_set=[(Z_tr[tr_idx], y_tr[tr_idx]), (Z_tr[va_idx], y_tr[va_idx])],
+                      verbose=False)
+            evals = model.evals_result()
+            history = {
+                "iterations": list(range(1, len(evals["validation_0"]["rmse"]) + 1)),
+                "train_curve": [float(v) for v in evals["validation_0"]["rmse"]],
+                "val_curve":   [float(v) for v in evals["validation_1"]["rmse"]],
+                "curve_metric": "rmse",
+            }
+            # Refit on the full training fold so the fold score uses all training data.
+            model = _make_model(model_name, params, random_seed)
+            model.fit(Z_tr, y_tr)
+        else:
+            model.fit(Z_tr, y_tr)
+
+    elif model_name == "mlp":
+        # MLP already does internal early stopping validation; capture its curves.
+        model = _make_model(model_name, params, random_seed)
+        model.fit(Z_tr, y_tr)
+        mlp = model.steps[-1][1] if hasattr(model, "steps") else model
+        loss_curve = getattr(mlp, "loss_curve_", None)
+        val_scores = getattr(mlp, "validation_scores_", None)
+        if loss_curve is not None:
+            history = {
+                "iterations": list(range(1, len(loss_curve) + 1)),
+                "train_curve": [float(v) for v in loss_curve],
+                "curve_metric": "mlp_training_loss",
+            }
+            if val_scores is not None:
+                # validation_scores_ are R^2 (higher better); store separately.
+                history["val_curve"] = [float(v) for v in val_scores]
+                history["val_curve_metric"] = "r2"
+
+    else:  # random_forest or anything non iterative: no curve
+        model = _make_model(model_name, params, random_seed)
+        model.fit(Z_tr, y_tr)
+
+    return model, history
+
+
 # Cross-validation (on embeddings)
 
-def _cv_evaluate(Z, y, model_name, params, n_splits, random_seed):
-    """TimeSeriesSplit CV on the embedding. Returns per-fold metrics and their means."""
+def _ci95(values):
+    """95% confidence interval half width for the mean (normal approx)."""
+    v = np.asarray(values, dtype=float)
+    n = len(v)
+    if n < 2:
+        return 0.0
+    return float(1.96 * v.std(ddof=1) / np.sqrt(n))
+
+
+def _cv_evaluate(Z, y, model_name, params, n_splits, random_seed, val_fraction=0.0):
+    """TimeSeriesSplit CV on the embedding. Returns per fold metrics, per fold training
+    curves, and a summary including mean, std and 95% confidence intervals."""
     y_range = float(y.max() - y.min())
     tscv = TimeSeriesSplit(n_splits=n_splits)
     fold_rows = []
+    fold_histories = []
     for fold, (tr, te) in enumerate(tscv.split(Z), 1):
-        model = _make_model(model_name, params, random_seed)
-        model.fit(Z[tr], y[tr])
+        model, hist = _fit_capture_history(model_name, params, random_seed,
+                                           Z[tr], y[tr], val_fraction)
         pred = model.predict(Z[te])
         m = _metrics(y[te], pred, y_range)
         m.update({"fold": fold, "n_train": int(len(tr)), "n_test": int(len(te))})
         fold_rows.append(m)
+        if hist:
+            hist = dict(hist); hist["fold"] = fold
+            fold_histories.append(hist)
         print(f"    Fold {fold}/{n_splits}: train={len(tr):6d} test={len(te):6d}  "
-              f"R²={m['r2']:.4f}  MAE={m['mae']:.4f}  RMSE={m['rmse']:.4f}  NRMSE={m['nrmse']:.4f}")
+              f"R2={m['r2']:.4f}  MAE={m['mae']:.4f}  RMSE={m['rmse']:.4f}  NRMSE={m['nrmse']:.4f}")
 
     arr = lambda key: np.array([r[key] for r in fold_rows])
     summary = {}
     for key in ("r2", "mae", "rmse", "nrmse"):
-        summary[f"{key}_mean"] = float(arr(key).mean())
-        summary[f"{key}_std"]  = float(arr(key).std())
-    print(f"    → R²={summary['r2_mean']:.4f}±{summary['r2_std']:.4f}  "
+        vals = arr(key)
+        summary[f"{key}_mean"] = float(vals.mean())
+        summary[f"{key}_std"]  = float(vals.std())
+        summary[f"{key}_ci95"] = _ci95(vals)
+    print(f"    => R2={summary['r2_mean']:.4f} +/- {summary['r2_ci95']:.4f} (95% CI)  "
           f"MAE={summary['mae_mean']:.4f}  RMSE={summary['rmse_mean']:.4f}  "
-          f"NRMSE={summary['nrmse_mean']:.4f}±{summary['nrmse_std']:.4f}")
-    return fold_rows, summary
+          f"NRMSE={summary['nrmse_mean']:.4f} +/- {summary['nrmse_ci95']:.4f}")
+    return fold_rows, summary, fold_histories
 
 
 # Importance aggregation
@@ -176,6 +271,12 @@ def _shap_raw(predict_fn, X_raw, random_seed, max_samples, n_background=50):
 
 # Public entry point
 
+def _top_n(by_dict, n):
+    """Return the top n (name, value) pairs from a dict, descending by value."""
+    items = sorted(by_dict.items(), key=lambda kv: kv[1], reverse=True)
+    return [{"name": k, "value": float(v)} for k, v in items[:n]]
+
+
 def run_supervised_probe(
     Z: np.ndarray,
     X_windows: np.ndarray,
@@ -188,6 +289,8 @@ def run_supervised_probe(
     random_seed: int,
     run_shap: bool = False,
     shap_max_samples: int = 200,
+    cv_val_fraction: float = 0.0,
+    top_n: int = 15,
 ) -> dict:
     """
     CV the core model on embeddings; explain on raw features through the wrapper.
@@ -199,9 +302,13 @@ def run_supervised_probe(
     embed_fn   : callable raw (N, F_win) -> embedding (N, D); the frozen transform
                  (encoder for AE, column-select for identity/FS, incl. any embedding
                  standardization) so wrapper(raw) reproduces Z.
+    cv_val_fraction : fraction of each training fold (most recent tail, chronological)
+                 used as an internal validation set to record train/val learning curves.
+                 0 disables curve capture for xgboost (MLP still reports its own curve).
+    top_n      : how many top features/columns to store in the saved summary.
     """
     print(f"\n{'='*70}")
-    print(f"  Supervised probe — model={model_name!r}, CV folds={n_splits}")
+    print(f"  Supervised probe: model={model_name!r}, CV folds={n_splits}")
     print(f"  Core model trained on EMBEDDING ({Z.shape[1]}-dim); "
           f"importance/SHAP on RAW ({X_windows.shape[1]}-dim).")
     print(f"{'='*70}")
@@ -211,15 +318,16 @@ def run_supervised_probe(
     y = np.asarray(y, dtype=np.float32)
     rng = np.random.default_rng(random_seed)
 
-    # ── 1. Cross-validation on embeddings ──
-    folds, summary = _cv_evaluate(Z, y, model_name, model_params, n_splits, random_seed)
+    # 1. Cross-validation on embeddings (with per fold training curves)
+    folds, summary, fold_histories = _cv_evaluate(
+        Z, y, model_name, model_params, n_splits, random_seed, cv_val_fraction)
 
-    # ── 2. Fit final core model on ALL embeddings (for explainability) ──
-    print(f"  Fitting final core model on all {len(Z)} embeddings …")
+    # 2. Fit final core model on ALL embeddings (for explainability)
+    print(f"  Fitting final core model on all {len(Z)} embeddings ...")
     core_model = _make_model(model_name, model_params, random_seed)
     core_model.fit(Z, y)
 
-    # ── 3. Build the raw→embed→predict wrapper and verify consistency ──
+    # 3. Build the raw->embed->predict wrapper and verify consistency
     def wrapper_predict(X_raw):
         return core_model.predict(embed_fn(np.asarray(X_raw, dtype=np.float32)))
 
@@ -232,7 +340,7 @@ def run_supervised_probe(
     else:
         print(f"  [Check] embed_fn reproduces Z (max abs diff={max_abs_diff:.2e}). OK.")
 
-    # ── 4. Feature names ──
+    # 4. Feature names
     names = window_feature_names
     if names is None or len(names) != X_windows.shape[1]:
         names = [f"feat_{i}" for i in range(X_windows.shape[1])]
@@ -241,27 +349,39 @@ def run_supervised_probe(
         "model": model_name,
         "cv_folds": folds,
         "cv_summary": summary,
+        "cv_fold_histories": fold_histories,
+        "cv_val_fraction": cv_val_fraction,
         "feature_names": names,
         "embed_consistency_max_abs_diff": max_abs_diff,
         "importance_kind": "permutation (raw, via wrapper)",
+        "top_n": top_n,
     }
 
-    # ── 5. Permutation importance on raw ──
-    print(f"  Computing permutation importance on raw features (through wrapper) …")
+    # 5. Permutation importance on raw
+    print(f"  Computing permutation importance on raw features (through wrapper) ...")
     perm = _permutation_importance_raw(wrapper_predict, X_windows, y, n_repeats=5, rng=rng)
+    perm_by_col = _aggregate_to_columns(perm, names)
     result["importances"] = perm.tolist()
-    result["importances_by_column"] = _aggregate_to_columns(perm, names)
+    result["importances_by_column"] = perm_by_col
+    # Top n raw timestep specific features, and top n aggregated columns.
+    result["top_importance_features"] = _top_n(
+        {names[i]: float(perm[i]) for i in range(len(names))}, top_n)
+    result["top_importance_columns"] = _top_n(perm_by_col, top_n)
 
-    # ── 6. SHAP on raw ──
+    # 6. SHAP on raw (optional)
     if run_shap:
-        print(f"  Computing SHAP on raw features (through wrapper; KernelSHAP) …")
+        print(f"  Computing SHAP on raw features (through wrapper; KernelSHAP) ...")
         print(f"    [Note] KernelSHAP cost scales with shap_max_samples (={shap_max_samples}) "
-              f"× raw feature count; this can take minutes for the autoencoder. "
+              f"x raw feature count; this can take minutes for the autoencoder. "
               f"Lower SHAP_MAX_SAMPLES or set RUN_SHAP=False if too slow.")
         try:
             mean_abs, n_used = _shap_raw(wrapper_predict, X_windows, random_seed, shap_max_samples)
+            shap_by_col = _aggregate_to_columns(mean_abs, names)
             result["shap_mean_abs"] = np.asarray(mean_abs, dtype=float).tolist()
-            result["shap_by_column"] = _aggregate_to_columns(mean_abs, names)
+            result["shap_by_column"] = shap_by_col
+            result["top_shap_features"] = _top_n(
+                {names[i]: float(mean_abs[i]) for i in range(len(names))}, top_n)
+            result["top_shap_columns"] = _top_n(shap_by_col, top_n)
             print(f"    SHAP computed on {n_used} samples.")
         except Exception as e:
             print(f"    [Warning] SHAP failed ({type(e).__name__}: {e}). "
