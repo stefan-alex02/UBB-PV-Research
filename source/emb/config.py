@@ -3,10 +3,10 @@ Pipeline configuration. Edit this file to change hyperparameters and technique c
 """
 from datetime import datetime
 
-EXP_NAME = "win6_latest_y_default_large_ae"
+EXP_NAME = "win3_latest_y_smaller_ae_no_gmm"
 
 # Windowing
-WINDOW_SIZE = 6   # k: number of consecutive rows per sample
+WINDOW_SIZE = 3   # k: number of consecutive rows per sample
 
 # Windowing mode — how y (target) is associated with each window:
 #   "next_y"   : window keeps ALL columns (incl. SolarGeneration); target y is the
@@ -32,13 +32,14 @@ EMBEDDING_METHOD = "autoencoder"
 NORMALIZE_EMBEDDINGS = False
 
 # Autoencoder settings (used when EMBEDDING_METHOD == "autoencoder") ---
-AE_LATENT_DIM    = 32       # Embedding dimension
+# AE_LATENT_DIM    = 32       # Embedding dimension
+AE_LATENT_DIM    = 8       # Embedding dimension
 # Encoder hidden layer sizes (decoder mirrors this). Two options:
 #   - explicit list, e.g. [256, 128, 64]  (used as-is)
 #   - "auto"  → geometric funnel auto-derived from input dim & latent dim,
 #               scaling automatically with WINDOW_SIZE. Recommended.
 # AE_HIDDEN_DIMS   = "auto"
-AE_HIDDEN_DIMS   = [256, 128, 64]
+AE_HIDDEN_DIMS   = [64, 32, 16]
 AE_AUTO_N_LAYERS = 2        # number of hidden layers when AE_HIDDEN_DIMS == "auto"
 AE_EPOCHS        = 50
 AE_BATCH_SIZE    = 64
@@ -59,7 +60,8 @@ RELIEFF_N_NEIGHBORS = 10
 # Clustering
 # List any subset of: "kmeans", "dbscan", "agglomerative", "kmedoids", "gmm".
 # Each selected method is computed and evaluated independently.
-CLUSTERING_METHODS = ["kmeans", "agglomerative", "kmedoids", "gmm"]
+# CLUSTERING_METHODS = ["kmeans", "agglomerative", "kmedoids", "gmm"]
+CLUSTERING_METHODS = ["kmeans", "agglomerative", "kmedoids"]
 
 # --- K-Means ---
 KMEANS_K = 4
@@ -116,17 +118,13 @@ RUN_SUPERVISED = False
 # Which model to probe with: "xgboost", "random_forest", "mlp".
 SUPERVISED_MODEL = "xgboost"
 
-# Which representations to probe:
-#   "embedding" → on Z (gives the embedding-usefulness score; latent dims not interpretable)
-#   "raw"       → on the raw windowed features (interpretable importances mapped to columns)
-SUPERVISED_ON = ["embedding", "raw"]
 
 # Time-series cross-validation folds (expanding-window forward chaining; no shuffling).
 CV_N_SPLITS = 5
 
 # Explainability
-RUN_SHAP = True          # SHAP attributions (TreeExplainer for tree models; slow KernelSHAP for MLP)
-SHAP_MAX_SAMPLES = 500   # cap samples passed to SHAP for speed
+RUN_SHAP = True          # raw-feature SHAP via KernelSHAP through the embedding wrapper (can be slow)
+SHAP_MAX_SAMPLES = 200   # samples explained by SHAP (cost scales with this; keep modest)
 
 # --- XGBoost params ---
 XGB_N_ESTIMATORS = 300

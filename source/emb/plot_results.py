@@ -591,26 +591,34 @@ def plot_target_distribution(d: dict):
 
 def plot_supervised_scores(d: dict):
     sup = d.get("supervised")
-    if not sup:
+    if not sup or "cv_summary" not in sup:
         return
 
-    kinds = list(sup.keys())  # "embedding", "raw"
-    metrics = [("r2", "R²  (↑ better)"), ("mae", "MAE  (↓ better)"), ("rmse", "RMSE  (↓ better)")]
+    model_name = sup.get("model", "model")
+    summary = sup["cv_summary"]
+    folds = sup.get("cv_folds", [])
+    metrics = [("r2", "R²  (↑ better)"), ("mae", "MAE  (↓ better)"),
+               ("rmse", "RMSE  (↓ better)"), ("nrmse", "NRMSE  (↓ better)")]
 
-    fig, axes = plt.subplots(1, len(metrics), figsize=(4.5 * len(metrics), 4))
+    fig, axes = plt.subplots(1, len(metrics), figsize=(3.5 * len(metrics), 4))
     if len(metrics) == 1:
         axes = [axes]
 
-    model_name = sup[kinds[0]].get("model", "model")
     for ax, (key, label) in zip(axes, metrics):
-        means = [sup[k]["cv_summary"][f"{key}_mean"] for k in kinds]
-        stds  = [sup[k]["cv_summary"][f"{key}_std"]  for k in kinds]
-        bars = ax.bar(kinds, means, yerr=stds, capsize=5,
-                      color=["#4C72B0", "#DD8452"][:len(kinds)], edgecolor="white")
-        ax.bar_label(bars, fmt="%.3f", fontsize=9, padding=3)
+        mean = summary.get(f"{key}_mean", float("nan"))
+        std  = summary.get(f"{key}_std", 0.0)
+        # Bar = CV mean ± std; overlay per-fold points to show the trend across time.
+        bar = ax.bar(["CV mean"], [mean], yerr=[std], capsize=6,
+                     color="#4C72B0", edgecolor="white", width=0.5)
+        ax.bar_label(bar, fmt="%.3f", fontsize=9, padding=3)
+        if folds:
+            fold_vals = [f[key] for f in folds]
+            ax.scatter(np.zeros(len(fold_vals)), fold_vals, color="#DD8452",
+                       zorder=3, s=25, label="per fold")
+            ax.legend(fontsize=7)
         ax.set_title(label, fontweight="bold")
         ax.set_ylabel(key)
-    fig.suptitle(f"Supervised forecast probe ({model_name}) — time-series CV",
+    fig.suptitle(f"Supervised forecast probe ({model_name}) on embeddings — time-series CV",
                  fontweight="bold")
 
     plt.tight_layout()
@@ -624,29 +632,29 @@ def plot_supervised_scores(d: dict):
 
 def plot_supervised_importance(d: dict):
     sup = d.get("supervised")
-    if not sup or "raw" not in sup:
+    if not sup or "importances_by_column" not in sup:
         return
 
-    raw = sup["raw"]
-    model_name = raw.get("model", "model")
+    model_name = sup.get("model", "model")
 
-    # Prefer SHAP-by-column if available, else permutation/impurity importance.
-    use_shap = raw.get("shap_by_column") is not None
-    by_col = raw.get("shap_by_column") if use_shap else raw.get("importances_by_column")
+    # Prefer SHAP-by-column if available, else permutation importance.
+    use_shap = sup.get("shap_by_column") is not None
+    by_col = sup.get("shap_by_column") if use_shap else sup.get("importances_by_column")
     if not by_col:
         return
-    kind = "mean |SHAP|" if use_shap else raw.get("importance_kind", "importance")
+    kind = "mean |SHAP|" if use_shap else "permutation importance (ΔR²)"
 
     cols = sorted(by_col, key=lambda c: by_col[c], reverse=True)
     vals = [by_col[c] for c in cols]
 
     fig, ax = plt.subplots(figsize=(9, max(4, len(cols) * 0.4)))
-    bars = ax.barh(range(len(cols)), vals[::-1], color="#4C72B0", edgecolor="white")
+    ax.barh(range(len(cols)), vals[::-1], color="#4C72B0", edgecolor="white")
     ax.set_yticks(range(len(cols)))
     ax.set_yticklabels(cols[::-1], fontsize=9)
     ax.set_xlabel(f"{kind} (averaged over window time steps)")
-    ax.set_title(f"Feature importance per original column — {model_name}\n"
-                 f"(raw windowed input)", fontweight="bold")
+    ax.set_title(f"Raw-feature importance per original column — {model_name}\n"
+                 f"(core model trained on embeddings; attributed to raw inputs via wrapper)",
+                 fontweight="bold", fontsize=10)
 
     plt.tight_layout()
     fpath = out(d["dir"], "supervised_importance.png")
@@ -735,5 +743,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
-    
+    plot()

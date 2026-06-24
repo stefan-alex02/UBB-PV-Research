@@ -19,6 +19,47 @@ import config
 from autoencoder import train_autoencoder, get_autoencoder_embeddings
 
 
+def make_embed_fn(method: str, embed_meta: dict, scaler=None, device: str = "cpu"):
+    """
+    Build the frozen transform raw_window -> embedding, matching exactly how Z was
+    produced (including the optional embedding standardization `scaler`).
+
+    Used by the supervised probe so that explainability can run on RAW features:
+    the explainer perturbs raw windows, which are mapped through this function to the
+    embedding space the core model was trained on. This must reproduce the saved Z.
+
+    method     : the embedding method name.
+    embed_meta : the meta dict returned by get_embeddings (holds the trained AE model
+                 or the selected feature indices).
+    scaler     : a fitted StandardScaler applied to the embedding (or None).
+    """
+    def _maybe_scale(Z):
+        return scaler.transform(Z) if scaler is not None else Z
+
+    if method == "autoencoder":
+        model = embed_meta["model"]
+        def f(X):
+            Z = get_autoencoder_embeddings(model, np.asarray(X, dtype=np.float32), device)
+            return _maybe_scale(Z).astype(np.float32)
+        return f
+
+    elif method in ("univariate_fs", "random_forest_fs", "relieff"):
+        idx = embed_meta["selected_indices"]
+        def f(X):
+            Z = np.asarray(X, dtype=np.float32)[:, idx]
+            return _maybe_scale(Z).astype(np.float32)
+        return f
+
+    elif method == "identity":
+        def f(X):
+            Z = np.asarray(X, dtype=np.float32)
+            return _maybe_scale(Z).astype(np.float32)
+        return f
+
+    else:
+        raise ValueError(f"make_embed_fn: unknown method {method!r}.")
+
+
 # Public entry point
 
 def get_embeddings(X_windows: np.ndarray, method: str, y: np.ndarray = None) -> tuple[np.ndarray, dict]:

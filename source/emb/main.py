@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 import config
 from data_loader  import load_and_preprocess, build_windows, discretize_target
-from embeddings   import get_embeddings
+from embeddings   import get_embeddings, make_embed_fn
 from clustering   import run_clustering
 from analysis     import (
     pairwise_correlation_analysis,
@@ -57,10 +57,15 @@ def main():
     ae_history = embed_meta.get("history")   # None for non-AE methods
 
     # 3b. Optional embedding standardization
+    embed_scaler = None
     if config.NORMALIZE_EMBEDDINGS:
         from sklearn.preprocessing import StandardScaler
-        Z = StandardScaler().fit_transform(Z).astype(np.float32)
+        embed_scaler = StandardScaler().fit(Z)
+        Z = embed_scaler.transform(Z).astype(np.float32)
         print("[Embedding] Standardized (z-scored) embedding dimensions before clustering.")
+
+    # Frozen transform raw->embedding (for supervised explainability on raw features)
+    embed_fn = make_embed_fn(config.EMBEDDING_METHOD, embed_meta, embed_scaler, config.DEVICE)
 
     # Per-window feature names (for FS importance plots)
     if config.WINDOWING_MODE == "latest_y":
@@ -159,10 +164,10 @@ def main():
         supervised_results = run_supervised_probe(
             Z=Z, X_windows=X_windows, y=y,
             window_feature_names=window_feature_names,
+            embed_fn=embed_fn,
             model_name=config.SUPERVISED_MODEL,
             model_params=sup_params,
             n_splits=config.CV_N_SPLITS,
-            probe_on=config.SUPERVISED_ON,
             random_seed=config.RANDOM_SEED,
             run_shap=config.RUN_SHAP,
             shap_max_samples=config.SHAP_MAX_SAMPLES,
