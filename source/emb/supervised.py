@@ -30,11 +30,14 @@ import numpy as np
 from collections import defaultdict
 
 from sklearn.model_selection import TimeSeriesSplit
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.neural_network import MLPRegressor
+from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
+from sklearn.neural_network import MLPRegressor, MLPClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import make_pipeline
-from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
+from sklearn.metrics import (r2_score, mean_absolute_error, mean_squared_error,
+                             precision_recall_fscore_support, balanced_accuracy_score,
+                             accuracy_score, confusion_matrix)
+from sklearn.utils.class_weight import compute_sample_weight
 
 
 # Model factory
@@ -72,8 +75,55 @@ def _make_model(model_name: str, params: dict, random_seed: int):
                          "Choose 'xgboost', 'random_forest', or 'mlp'.")
 
 
-def _is_tree(model_name: str) -> bool:
-    return model_name in ("xgboost", "random_forest")
+def _make_classifier(model_name: str, params: dict, random_seed: int, n_classes: int):
+    """Construct a fresh classifier that outputs class probabilities (softmax-style).
+    MLP is wrapped with a scaler. Class weighting is applied at fit time via
+    per-sample weights (uniform across model types), so no class_weight arg here."""
+    if model_name == "xgboost":
+        import xgboost as xgb
+        return xgb.XGBClassifier(
+            n_estimators=params.get("xgb_n_estimators", 300),
+            max_depth=params.get("xgb_max_depth", 6),
+            learning_rate=params.get("xgb_learning_rate", 0.1),
+            subsample=params.get("xgb_subsample", 0.9),
+            objective="multi:softprob", num_class=n_classes,
+            n_jobs=-1, random_state=random_seed, verbosity=0,
+            eval_metric="mlogloss",
+        )
+    elif model_name == "random_forest":
+        return RandomForestClassifier(
+            n_estimators=params.get("rf_n_estimators", 300),
+            max_depth=params.get("rf_max_depth", None),
+            n_jobs=-1, random_state=random_seed,
+        )
+    elif model_name == "mlp":
+        mlp = MLPClassifier(
+            hidden_layer_sizes=tuple(params.get("mlp_hidden_layers", [128, 64])),
+            alpha=params.get("mlp_alpha", 1e-4),
+            learning_rate_init=params.get("mlp_learning_rate", 1e-3),
+            max_iter=params.get("mlp_max_iter", 300),
+            early_stopping=True, random_state=random_seed,
+        )
+        return make_pipeline(StandardScaler(), mlp)
+    else:
+        raise ValueError(f"Unknown SUPERVISED_MODEL: {model_name!r}. "
+                         "Choose 'xgboost', 'random_forest', or 'mlp'.")
+
+
+def _fit_classifier(model, X, y, sample_weight=None):
+    """Fit a classifier (or pipeline) with optional per-sample weights, handling the
+    pipeline step-name prefix required by sklearn pipelines."""
+    if sample_weight is None:
+        model.fit(X, y)
+    elif hasattr(model, "steps"):
+        last = model.steps[-1][0]
+        model.fit(X, y, **{f"{last}__sample_weight": sample_weight})
+    else:
+        model.fit(X, y, sample_weight=sample_weight)
+    return model
+
+
+# Metrics
 
 def _metrics(y_true, y_pred, y_range):
     """Regression metrics. NRMSE is RMSE normalized by the global y range
@@ -210,7 +260,160 @@ def _cv_evaluate(Z, y, model_name, params, n_splits, random_seed, val_fraction=0
     return fold_rows, summary, fold_histories
 
 
-# Importance aggregation
+# Per-class regression breakdown
+
+def _per_class_regression(Z, y, y_classes, model_name, params, n_splits, random_seed):
+    """
+    For each CV fold, group the test samples by their y-class and compute regression
+    metrics within each class; then average across folds. Lets you see how forecast
+    accuracy differs between the night/low class and the higher-generation classes.
+
+    Note: R2 within a near-constant class (e.g. the night/low class clustered near 0)
+    can be unstable or negative because the within-class variance is tiny; MAE and
+    NRMSE are more robust there. NRMSE here is normalized by the GLOBAL y range so the
+    per-class numbers stay comparable to the overall NRMSE.
+    """
+    y_range = float(y.max() - y.min())
+    classes = sorted(set(int(c) for c in y_classes))
+    tscv = TimeSeriesSplit(n_splits=n_splits)
+    # collect per-fold, per-class metrics
+    acc = {c: {"r2": [], "mae": [], "rmse": [], "nrmse": [], "n": []} for c in classes}
+
+    for tr, te in tscv.split(Z):
+        model = _make_model(model_name, params, random_seed)
+        model.fit(Z[tr], y[tr])
+        pred = model.predict(Z[te])
+        yte_cls = y_classes[te]
+        for c in classes:
+            mask = yte_cls == c
+            if mask.sum() < 2:
+                continue
+            m = _metrics(y[te][mask], pred[mask], y_range)
+            for k in ("r2", "mae", "rmse", "nrmse"):
+                acc[c][k].append(m[k])
+            acc[c]["n"].append(int(mask.sum()))
+
+    per_class = {}
+    for c in classes:
+        if not acc[c]["mae"]:
+            continue
+        per_class[c] = {
+            "r2_mean":    float(np.mean(acc[c]["r2"])),
+            "mae_mean":   float(np.mean(acc[c]["mae"])),
+            "rmse_mean":  float(np.mean(acc[c]["rmse"])),
+            "nrmse_mean": float(np.mean(acc[c]["nrmse"])),
+            "avg_n_test": float(np.mean(acc[c]["n"])),
+            "n_folds":    len(acc[c]["mae"]),
+        }
+    print("    Per-class regression (averaged across folds):")
+    for c, m in per_class.items():
+        print(f"      class {c}: R2={m['r2_mean']:.4f}  MAE={m['mae_mean']:.4f}  "
+              f"NRMSE={m['nrmse_mean']:.4f}  (avg n_test={m['avg_n_test']:.0f})")
+    return per_class
+
+
+# Classification metrics & CV
+
+def _specificity_per_class(cm):
+    """Per-class specificity (true negative rate) from a confusion matrix."""
+    spec = {}
+    total = cm.sum()
+    for i in range(cm.shape[0]):
+        tp = cm[i, i]
+        fn = cm[i, :].sum() - tp
+        fp = cm[:, i].sum() - tp
+        tn = total - tp - fn - fp
+        spec[i] = float(tn / (tn + fp)) if (tn + fp) > 0 else float("nan")
+    return spec
+
+
+def _classification_metrics(y_true, y_pred, classes):
+    """Macro and per-class metrics. Note: recall == sensitivity (true positive rate),
+    so we report it once under 'recall' and also expose per-class specificity."""
+    p_m, r_m, f_m, _ = precision_recall_fscore_support(
+        y_true, y_pred, labels=classes, average="macro", zero_division=0)
+    p_c, r_c, f_c, sup = precision_recall_fscore_support(
+        y_true, y_pred, labels=classes, average=None, zero_division=0)
+    cm = confusion_matrix(y_true, y_pred, labels=classes)
+    spec = _specificity_per_class(cm)
+    return {
+        "balanced_accuracy": float(balanced_accuracy_score(y_true, y_pred)),
+        "accuracy": float(accuracy_score(y_true, y_pred)),
+        "precision_macro": float(p_m),
+        "recall_macro": float(r_m),         # == sensitivity (macro)
+        "f1_macro": float(f_m),
+        "per_class": {
+            int(c): {
+                "precision": float(p_c[i]),
+                "recall": float(r_c[i]),       # == sensitivity for this class
+                "f1": float(f_c[i]),
+                "specificity": float(spec.get(i, float("nan"))),
+                "support": int(sup[i]),
+            } for i, c in enumerate(classes)
+        },
+        "confusion_matrix": cm.tolist(),
+    }
+
+
+def _cv_classify(Z, y_classes, model_name, params, n_splits, random_seed, weighted):
+    """TimeSeriesSplit CV for classification. Returns per-fold metrics, a summary with
+    means / std / 95% CI for the aggregate scores, and the summed confusion matrix."""
+    classes = sorted(set(int(c) for c in y_classes))
+    n_classes = len(classes)
+    tscv = TimeSeriesSplit(n_splits=n_splits)
+    fold_rows = []
+    cm_total = np.zeros((n_classes, n_classes), dtype=int)
+
+    for fold, (tr, te) in enumerate(tscv.split(Z), 1):
+        clf = _make_classifier(model_name, params, random_seed, n_classes)
+        sw = compute_sample_weight("balanced", y_classes[tr]) if weighted else None
+        _fit_classifier(clf, Z[tr], y_classes[tr], sample_weight=sw)
+        # Predict labels via argmax of class probabilities (uniform across models;
+        # avoids XGBoost multi:softprob returning a probability matrix from predict()).
+        proba = clf.predict_proba(Z[te])
+        pred = np.asarray(proba).argmax(axis=1)
+        # Map column index back to the actual class label.
+        class_order = getattr(clf, "classes_", None)
+        if class_order is None and hasattr(clf, "steps"):
+            class_order = clf.steps[-1][1].classes_
+        if class_order is not None:
+            pred = np.asarray(class_order)[pred]
+        m = _classification_metrics(y_classes[te], pred, classes)
+        cm_total += np.array(m["confusion_matrix"])
+        row = {"fold": fold, "n_train": int(len(tr)), "n_test": int(len(te)),
+               "balanced_accuracy": m["balanced_accuracy"], "accuracy": m["accuracy"],
+               "precision_macro": m["precision_macro"], "recall_macro": m["recall_macro"],
+               "f1_macro": m["f1_macro"], "per_class": m["per_class"]}
+        fold_rows.append(row)
+        print(f"    Fold {fold}/{n_splits}: train={len(tr):6d} test={len(te):6d}  "
+              f"bal_acc={m['balanced_accuracy']:.4f}  F1_macro={m['f1_macro']:.4f}  "
+              f"P_macro={m['precision_macro']:.4f}  R_macro={m['recall_macro']:.4f}")
+
+    arr = lambda key: np.array([r[key] for r in fold_rows])
+    summary = {}
+    for key in ("balanced_accuracy", "accuracy", "precision_macro", "recall_macro", "f1_macro"):
+        vals = arr(key)
+        summary[f"{key}_mean"] = float(vals.mean())
+        summary[f"{key}_std"]  = float(vals.std())
+        summary[f"{key}_ci95"] = _ci95(vals)
+
+    # Per-class metrics averaged across folds
+    per_class_avg = {}
+    for c in classes:
+        per_class_avg[int(c)] = {}
+        for metric in ("precision", "recall", "f1", "specificity"):
+            vals = [r["per_class"][c][metric] for r in fold_rows if c in r["per_class"]]
+            per_class_avg[int(c)][metric] = float(np.nanmean(vals)) if vals else float("nan")
+    summary["per_class_avg"] = per_class_avg
+    summary["confusion_matrix_total"] = cm_total.tolist()
+    summary["classes"] = classes
+
+    print(f"    => balanced_acc={summary['balanced_accuracy_mean']:.4f} "
+          f"+/- {summary['balanced_accuracy_ci95']:.4f} (95% CI)  "
+          f"F1_macro={summary['f1_macro_mean']:.4f}  "
+          f"P_macro={summary['precision_macro_mean']:.4f}  "
+          f"R_macro={summary['recall_macro_mean']:.4f}")
+    return fold_rows, summary
 
 def _strip_timestep(name: str) -> str:
     """'GHI_t-3' → 'GHI'. Leaves names without the suffix unchanged."""
@@ -281,34 +484,41 @@ def run_supervised_probe(
     Z: np.ndarray,
     X_windows: np.ndarray,
     y: np.ndarray,
+    y_classes: np.ndarray,
     window_feature_names: list[str],
     embed_fn,
     model_name: str,
     model_params: dict,
     n_splits: int,
     random_seed: int,
+    task: str = "regression",
+    class_weighted: bool = False,
     run_shap: bool = False,
     shap_max_samples: int = 200,
     cv_val_fraction: float = 0.0,
     top_n: int = 15,
 ) -> dict:
     """
-    CV the core model on embeddings; explain on raw features through the wrapper.
+    Probe the embedding with a supervised model under time-series CV.
 
-    Parameters
-    ----------
-    Z          : embeddings the core model trains/evaluates on, shape (N, D).
-    X_windows  : raw windowed features for explainability, shape (N, F_win).
-    embed_fn   : callable raw (N, F_win) -> embedding (N, D); the frozen transform
-                 (encoder for AE, column-select for identity/FS, incl. any embedding
-                 standardization) so wrapper(raw) reproduces Z.
-    cv_val_fraction : fraction of each training fold (most recent tail, chronological)
-                 used as an internal validation set to record train/val learning curves.
-                 0 disables curve capture for xgboost (MLP still reports its own curve).
-    top_n      : how many top features/columns to store in the saved summary.
+    task : "regression", "classification", or "both".
+      - regression     : core model predicts continuous y; also reports a per-class
+                          regression breakdown (metrics within each y-class).
+      - classification : core model predicts the discretized y-class, outputting class
+                          probabilities; reports precision/recall(=sensitivity)/F1,
+                          balanced accuracy, per-class specificity and a confusion matrix.
+    class_weighted : if True, classification uses balanced per-sample weights to counter
+                     the dominant (night/low) class.
+
+    Explainability (permutation importance + optional SHAP on RAW features through the
+    embedding wrapper) is computed once, using the regression wrapper when regression is
+    active, otherwise the classification wrapper (probability of the predicted class).
+
+    Parameters mirror the earlier version; Z is what the core model trains on, X_windows
+    and embed_fn enable raw-feature attribution.
     """
     print(f"\n{'='*70}")
-    print(f"  Supervised probe: model={model_name!r}, CV folds={n_splits}")
+    print(f"  Supervised probe: model={model_name!r}, task={task!r}, CV folds={n_splits}")
     print(f"  Core model trained on EMBEDDING ({Z.shape[1]}-dim); "
           f"importance/SHAP on RAW ({X_windows.shape[1]}-dim).")
     print(f"{'='*70}")
@@ -316,54 +526,94 @@ def run_supervised_probe(
     Z = np.asarray(Z, dtype=np.float32)
     X_windows = np.asarray(X_windows, dtype=np.float32)
     y = np.asarray(y, dtype=np.float32)
+    y_classes = np.asarray(y_classes).astype(int)
     rng = np.random.default_rng(random_seed)
 
-    # 1. Cross-validation on embeddings (with per fold training curves)
-    folds, summary, fold_histories = _cv_evaluate(
-        Z, y, model_name, model_params, n_splits, random_seed, cv_val_fraction)
+    do_reg = task in ("regression", "both")
+    do_clf = task in ("classification", "both")
+    if not (do_reg or do_clf):
+        raise ValueError(f"Unknown task {task!r}. Choose 'regression', 'classification', 'both'.")
 
-    # 2. Fit final core model on ALL embeddings (for explainability)
-    print(f"  Fitting final core model on all {len(Z)} embeddings ...")
-    core_model = _make_model(model_name, model_params, random_seed)
-    core_model.fit(Z, y)
+    result = {
+        "model": model_name,
+        "task": task,
+        "class_weighted": bool(class_weighted),
+        "top_n": top_n,
+    }
 
-    # 3. Build the raw->embed->predict wrapper and verify consistency
-    def wrapper_predict(X_raw):
-        return core_model.predict(embed_fn(np.asarray(X_raw, dtype=np.float32)))
+    # Feature names (shared by explainability)
+    names = window_feature_names
+    if names is None or len(names) != X_windows.shape[1]:
+        names = [f"feat_{i}" for i in range(X_windows.shape[1])]
+    result["feature_names"] = names
 
+    # ── Regression task ──
+    if do_reg:
+        print("\n  [Regression] Cross-validation on embeddings:")
+        folds, summary, fold_histories = _cv_evaluate(
+            Z, y, model_name, model_params, n_splits, random_seed, cv_val_fraction)
+        per_class_reg = _per_class_regression(
+            Z, y, y_classes, model_name, model_params, n_splits, random_seed)
+        result["regression"] = {
+            "cv_folds": folds,
+            "cv_summary": summary,
+            "cv_fold_histories": fold_histories,
+            "cv_val_fraction": cv_val_fraction,
+            "per_class": per_class_reg,
+        }
+
+    # ── Classification task ──
+    if do_clf:
+        print("\n  [Classification] Cross-validation on embeddings"
+              f"{' (balanced class weights)' if class_weighted else ''}:")
+        cfolds, csummary = _cv_classify(
+            Z, y_classes, model_name, model_params, n_splits, random_seed, class_weighted)
+        result["classification"] = {
+            "cv_folds": cfolds,
+            "cv_summary": csummary,
+        }
+
+    # Fit final core model on ALL embeddings (for explainability)
+    print(f"\n  Fitting final core model on all {len(Z)} embeddings (for explainability) ...")
+    if do_reg:
+        core_model = _make_model(model_name, model_params, random_seed)
+        core_model.fit(Z, y)
+        def wrapper_predict(X_raw):
+            return core_model.predict(embed_fn(np.asarray(X_raw, dtype=np.float32)))
+        expl_target = y
+        expl_kind = "regression output"
+    else:
+        n_classes = len(sorted(set(y_classes)))
+        core_model = _make_classifier(model_name, model_params, random_seed, n_classes)
+        sw = compute_sample_weight("balanced", y_classes) if class_weighted else None
+        _fit_classifier(core_model, Z, y_classes, sample_weight=sw)
+        # Explain the probability of the model's own predicted class (a continuous,
+        # perturbation-sensitive scalar suitable for importance/SHAP).
+        def wrapper_predict(X_raw):
+            proba = core_model.predict_proba(embed_fn(np.asarray(X_raw, dtype=np.float32)))
+            return proba.max(axis=1)
+        expl_target = wrapper_predict(X_windows)  # self-reference baseline for perm importance
+        expl_kind = "classification max-class probability"
+
+    # ── Consistency check ──
     Z_check = embed_fn(X_windows)
     max_abs_diff = float(np.max(np.abs(np.asarray(Z_check, dtype=np.float32) - Z)))
     if max_abs_diff > 1e-3:
         print(f"  [Warning] embed_fn(X_windows) differs from provided Z "
-              f"(max abs diff={max_abs_diff:.2e}). Raw attributions may be "
-              f"inconsistent with the embedding the core model was trained on.")
+              f"(max abs diff={max_abs_diff:.2e}). Raw attributions may be inconsistent.")
     else:
         print(f"  [Check] embed_fn reproduces Z (max abs diff={max_abs_diff:.2e}). OK.")
+    result["embed_consistency_max_abs_diff"] = max_abs_diff
+    result["explain_target_kind"] = expl_kind
 
-    # 4. Feature names
-    names = window_feature_names
-    if names is None or len(names) != X_windows.shape[1]:
-        names = [f"feat_{i}" for i in range(X_windows.shape[1])]
-
-    result = {
-        "model": model_name,
-        "cv_folds": folds,
-        "cv_summary": summary,
-        "cv_fold_histories": fold_histories,
-        "cv_val_fraction": cv_val_fraction,
-        "feature_names": names,
-        "embed_consistency_max_abs_diff": max_abs_diff,
-        "importance_kind": "permutation (raw, via wrapper)",
-        "top_n": top_n,
-    }
-
-    # 5. Permutation importance on raw
-    print(f"  Computing permutation importance on raw features (through wrapper) ...")
-    perm = _permutation_importance_raw(wrapper_predict, X_windows, y, n_repeats=5, rng=rng)
+    # Permutation importance on raw
+    print(f"  Computing permutation importance on raw features (through wrapper; "
+          f"target = {expl_kind}) ...")
+    perm = _permutation_importance_raw(wrapper_predict, X_windows, expl_target, n_repeats=5, rng=rng)
     perm_by_col = _aggregate_to_columns(perm, names)
+    result["importance_kind"] = "permutation (raw, via wrapper)"
     result["importances"] = perm.tolist()
     result["importances_by_column"] = perm_by_col
-    # Top n raw timestep specific features, and top n aggregated columns.
     result["top_importance_features"] = _top_n(
         {names[i]: float(perm[i]) for i in range(len(names))}, top_n)
     result["top_importance_columns"] = _top_n(perm_by_col, top_n)

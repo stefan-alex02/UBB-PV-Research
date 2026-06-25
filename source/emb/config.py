@@ -118,6 +118,14 @@ RUN_SUPERVISED = False
 # Which model to probe with: "xgboost", "random_forest", "mlp".
 SUPERVISED_MODEL = "random_forest"
 
+# Supervised task: "regression", "classification", or "both".
+#   regression     -> predict continuous SolarGeneration y (+ per-class breakdown)
+#   classification -> predict the discretized y-class (uses N_Y_CLASSES / LOW_CLASS_FRACTION)
+SUPERVISED_TASK = "both"
+
+# Classification: use balanced per-sample weights to counter the dominant night/low class.
+CLASS_WEIGHTED = True
+
 
 # Time-series cross-validation folds (expanding-window forward chaining; no shuffling).
 CV_N_SPLITS = 5

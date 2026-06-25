@@ -162,13 +162,15 @@ def main():
             "mlp_max_iter":     config.MLP_MAX_ITER,
         }
         supervised_results = run_supervised_probe(
-            Z=Z, X_windows=X_windows, y=y,
+            Z=Z, X_windows=X_windows, y=y, y_classes=y_classes,
             window_feature_names=window_feature_names,
             embed_fn=embed_fn,
             model_name=config.SUPERVISED_MODEL,
             model_params=sup_params,
             n_splits=config.CV_N_SPLITS,
             random_seed=config.RANDOM_SEED,
+            task=config.SUPERVISED_TASK,
+            class_weighted=config.CLASS_WEIGHTED,
             run_shap=config.RUN_SHAP,
             shap_max_samples=config.SHAP_MAX_SAMPLES,
             cv_val_fraction=config.CV_VAL_FRACTION,

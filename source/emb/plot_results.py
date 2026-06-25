@@ -589,14 +589,27 @@ def plot_target_distribution(d: dict):
 
 # 14. Supervised probe: CV scores
 
+def _reg(sup):
+    """Return the regression sub-results, supporting both the nested layout
+    (sup['regression']) and the older flat layout."""
+    if not sup:
+        return None
+    if "regression" in sup:
+        return sup["regression"]
+    if "cv_summary" in sup:   # backward compatibility with older runs
+        return sup
+    return None
+
+
 def plot_supervised_scores(d: dict):
     sup = d.get("supervised")
-    if not sup or "cv_summary" not in sup:
+    reg = _reg(sup)
+    if not reg or "cv_summary" not in reg:
         return
 
     model_name = sup.get("model", "model")
-    summary = sup["cv_summary"]
-    folds = sup.get("cv_folds", [])
+    summary = reg["cv_summary"]
+    folds = reg.get("cv_folds", [])
     metrics = [("r2", "R2 (higher better)"), ("mae", "MAE (lower better)"),
                ("rmse", "RMSE (lower better)"), ("nrmse", "NRMSE (lower better)")]
 
@@ -702,9 +715,10 @@ def plot_supervised_training_curves(d: dict):
     them: xgboost RMSE per boosting round, or MLP loss per epoch. Random forest has
     no iterative curve and is skipped."""
     sup = d.get("supervised")
-    if not sup:
+    reg = _reg(sup)
+    if not reg:
         return
-    histories = sup.get("cv_fold_histories") or []
+    histories = reg.get("cv_fold_histories") or []
     if not histories:
         return
 
@@ -744,9 +758,10 @@ def plot_supervised_fold_trend(d: dict):
     """How each metric evolves across the time ordered CV folds. Useful to see whether
     forecast quality improves as the training window grows."""
     sup = d.get("supervised")
-    if not sup:
+    reg = _reg(sup)
+    if not reg:
         return
-    folds = sup.get("cv_folds") or []
+    folds = reg.get("cv_folds") or []
     if not folds:
         return
     model_name = sup.get("model", "model")
@@ -773,7 +788,148 @@ def plot_supervised_fold_trend(d: dict):
     print(f"  Saved: {fpath}")
 
 
-# 10. Summary statistics table
+def plot_supervised_per_class_regression(d: dict):
+    """Per-class regression metrics (averaged across folds): how forecast accuracy
+    differs between the night/low class and the higher-generation classes."""
+    sup = d.get("supervised")
+    reg = _reg(sup)
+    if not reg or not reg.get("per_class"):
+        return
+    model_name = sup.get("model", "model")
+    per_class = reg["per_class"]
+    classes = sorted(int(c) for c in per_class.keys())
+
+    metrics = [("r2", "R2"), ("mae", "MAE"), ("nrmse", "NRMSE")]
+    fig, axes = plt.subplots(1, len(metrics), figsize=(4 * len(metrics), 4))
+    if len(metrics) == 1:
+        axes = [axes]
+    cmap = plt.get_cmap(COLORMAP, max(len(classes), 2))
+    for ax, (key, label) in zip(axes, metrics):
+        vals = [per_class[str(c)][f"{key}_mean"] if str(c) in per_class
+                else per_class[c][f"{key}_mean"] for c in classes]
+        bars = ax.bar([f"C{c}" for c in classes], vals,
+                      color=[cmap(i) for i in range(len(classes))], edgecolor="white")
+        ax.bar_label(bars, fmt="%.3f", fontsize=8)
+        ax.set_title(label, fontweight="bold")
+        ax.set_xlabel("y-class")
+    fig.suptitle(f"Per-class regression metrics ({model_name}), averaged across folds\n"
+                 f"(class 0 = night/low)",
+                 fontweight="bold", fontsize=10)
+
+    plt.tight_layout()
+    fpath = out(d["dir"], "supervised_per_class_regression.png")
+    plt.savefig(fpath, bbox_inches="tight")
+    plt.close()
+    print(f"  Saved: {fpath}")
+
+
+def plot_classification_scores(d: dict):
+    """Classification CV scores: balanced accuracy and macro precision/recall/F1,
+    each as mean with 95% CI plus per-fold points."""
+    sup = d.get("supervised")
+    clf = sup.get("classification") if sup else None
+    if not clf or not clf.get("cv_summary"):
+        return
+    model_name = sup.get("model", "model")
+    summary = clf["cv_summary"]
+    folds = clf.get("cv_folds", [])
+    metrics = [("balanced_accuracy", "Balanced acc"), ("f1_macro", "F1 (macro)"),
+               ("precision_macro", "Precision (macro)"), ("recall_macro", "Recall/sens (macro)")]
+
+    fig, axes = plt.subplots(1, len(metrics), figsize=(3.4 * len(metrics), 4))
+    if len(metrics) == 1:
+        axes = [axes]
+    for ax, (key, label) in zip(axes, metrics):
+        mean = summary.get(f"{key}_mean", float("nan"))
+        ci   = summary.get(f"{key}_ci95", summary.get(f"{key}_std", 0.0))
+        bar = ax.bar(["CV mean"], [mean], yerr=[ci], capsize=6,
+                     color="#4C72B0", edgecolor="white", width=0.5)
+        ax.bar_label(bar, fmt="%.3f", fontsize=9, padding=3)
+        if folds:
+            fv = [f[key] for f in folds]
+            ax.scatter(np.zeros(len(fv)), fv, color="#DD8452", zorder=3, s=25, label="per fold")
+            ax.legend(fontsize=7)
+        ax.set_ylim(0, 1)
+        ax.set_title(label, fontweight="bold", fontsize=10)
+    fig.suptitle(f"Classification probe ({model_name}) on embeddings, time series CV "
+                 f"(error bars: 95% CI)", fontweight="bold")
+
+    plt.tight_layout()
+    fpath = out(d["dir"], "classification_scores.png")
+    plt.savefig(fpath, bbox_inches="tight")
+    plt.close()
+    print(f"  Saved: {fpath}")
+
+
+def plot_classification_per_class(d: dict):
+    """Per-class precision, recall (sensitivity), F1 and specificity, averaged across folds."""
+    sup = d.get("supervised")
+    clf = sup.get("classification") if sup else None
+    if not clf or not clf.get("cv_summary", {}).get("per_class_avg"):
+        return
+    model_name = sup.get("model", "model")
+    pca = clf["cv_summary"]["per_class_avg"]
+    classes = sorted(int(c) for c in pca.keys())
+    metrics = ["precision", "recall", "f1", "specificity"]
+    labels  = ["Precision", "Recall/sensitivity", "F1", "Specificity"]
+
+    x = np.arange(len(classes))
+    w = 0.2
+    fig, ax = plt.subplots(figsize=(max(7, len(classes) * 1.6), 4.5))
+    cmap = plt.get_cmap("tab10", len(metrics))
+    for i, (m, lab) in enumerate(zip(metrics, labels)):
+        vals = [pca[str(c)][m] if str(c) in pca else pca[c][m] for c in classes]
+        ax.bar(x + (i - 1.5) * w, vals, w, label=lab, color=cmap(i), edgecolor="white")
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"C{c}" for c in classes])
+    ax.set_ylim(0, 1)
+    ax.set_xlabel("y-class (class 0 = night/low)")
+    ax.set_ylabel("score")
+    ax.set_title(f"Per-class classification metrics ({model_name}), averaged across folds",
+                 fontweight="bold", fontsize=10)
+    ax.legend(fontsize=8, ncol=2)
+
+    plt.tight_layout()
+    fpath = out(d["dir"], "classification_per_class.png")
+    plt.savefig(fpath, bbox_inches="tight")
+    plt.close()
+    print(f"  Saved: {fpath}")
+
+
+def plot_classification_confusion(d: dict):
+    """Confusion matrix summed across CV folds (row-normalized for readability)."""
+    sup = d.get("supervised")
+    clf = sup.get("classification") if sup else None
+    if not clf or not clf.get("cv_summary", {}).get("confusion_matrix_total"):
+        return
+    model_name = sup.get("model", "model")
+    cm = np.array(clf["cv_summary"]["confusion_matrix_total"], dtype=float)
+    classes = clf["cv_summary"].get("classes", list(range(cm.shape[0])))
+    row_sums = cm.sum(axis=1, keepdims=True)
+    cm_norm = np.divide(cm, row_sums, out=np.zeros_like(cm), where=row_sums > 0)
+
+    fig, ax = plt.subplots(figsize=(1.2 * len(classes) + 3, 1.2 * len(classes) + 2.5))
+    im = ax.imshow(cm_norm, cmap="Blues", vmin=0, vmax=1)
+    plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label="fraction of true class")
+    ax.set_xticks(range(len(classes)))
+    ax.set_yticks(range(len(classes)))
+    ax.set_xticklabels([f"C{c}" for c in classes])
+    ax.set_yticklabels([f"C{c}" for c in classes])
+    ax.set_xlabel("Predicted class")
+    ax.set_ylabel("True class")
+    for i in range(len(classes)):
+        for j in range(len(classes)):
+            ax.text(j, i, f"{cm_norm[i,j]:.2f}\n({int(cm[i,j])})",
+                    ha="center", va="center", fontsize=8,
+                    color="white" if cm_norm[i, j] > 0.5 else "black")
+    ax.set_title(f"Confusion matrix ({model_name}), summed over folds, row-normalized",
+                 fontweight="bold", fontsize=10)
+
+    plt.tight_layout()
+    fpath = out(d["dir"], "classification_confusion.png")
+    plt.savefig(fpath, bbox_inches="tight")
+    plt.close()
+    print(f"  Saved: {fpath}")
 
 def print_summary_table(d: dict):
     cfg = d["config"]
@@ -823,19 +979,52 @@ def print_summary_table(d: dict):
             lines.append(f"    [{row['algorithm']}]  Homogeneity={row['homogeneity']:.4f}")
 
     sup = d.get("supervised")
-    if sup and sup.get("cv_summary"):
-        s = sup["cv_summary"]
-        lines.append("")
-        lines.append(f"  Supervised forecast probe (model={sup.get('model','?')}, "
-                     f"trained on embeddings, time series CV):")
-        def _fmt(key, label):
-            mean = s.get(f"{key}_mean", float('nan'))
-            ci   = s.get(f"{key}_ci95", 0.0)
-            return f"{label}={mean:.4f} +/- {ci:.4f}"
-        lines.append("    " + "   ".join([
-            _fmt("r2", "R2"), _fmt("mae", "MAE"),
-            _fmt("rmse", "RMSE"), _fmt("nrmse", "NRMSE"),
-        ]) + "   (means +/- 95% CI)")
+    if sup:
+        model = sup.get("model", "?")
+        reg = sup.get("regression") if "regression" in sup else (
+            sup if "cv_summary" in sup else None)
+        clf = sup.get("classification")
+
+        if reg and reg.get("cv_summary"):
+            s = reg["cv_summary"]
+            lines.append("")
+            lines.append(f"  Supervised REGRESSION probe (model={model}, "
+                         f"trained on embeddings, time series CV):")
+            def _fmt(key, label):
+                return f"{label}={s.get(f'{key}_mean', float('nan')):.4f} +/- {s.get(f'{key}_ci95', 0.0):.4f}"
+            lines.append("    " + "   ".join([
+                _fmt("r2", "R2"), _fmt("mae", "MAE"),
+                _fmt("rmse", "RMSE"), _fmt("nrmse", "NRMSE"),
+            ]) + "   (means +/- 95% CI)")
+
+            per_class = reg.get("per_class") or {}
+            if per_class:
+                lines.append("    Per-class regression (averaged across folds):")
+                for c in sorted(per_class.keys(), key=lambda x: int(x)):
+                    m = per_class[c]
+                    lines.append(f"      class {c}: R2={m['r2_mean']:.4f}  "
+                                 f"MAE={m['mae_mean']:.4f}  NRMSE={m['nrmse_mean']:.4f}  "
+                                 f"(avg n_test={m['avg_n_test']:.0f})")
+
+        if clf and clf.get("cv_summary"):
+            cs = clf["cv_summary"]
+            lines.append("")
+            lines.append(f"  Supervised CLASSIFICATION probe (model={model}, "
+                         f"weighted={sup.get('class_weighted', False)}, time series CV):")
+            def _cf(key, label):
+                return f"{label}={cs.get(f'{key}_mean', float('nan')):.4f} +/- {cs.get(f'{key}_ci95', 0.0):.4f}"
+            lines.append("    " + "   ".join([
+                _cf("balanced_accuracy", "BalAcc"), _cf("f1_macro", "F1"),
+                _cf("precision_macro", "Prec"), _cf("recall_macro", "Rec/Sens"),
+            ]) + "   (macro means +/- 95% CI)")
+            pca = cs.get("per_class_avg") or {}
+            if pca:
+                lines.append("    Per-class (averaged across folds):")
+                for c in sorted(pca.keys(), key=lambda x: int(x)):
+                    m = pca[c]
+                    lines.append(f"      class {c}: P={m['precision']:.3f}  "
+                                 f"R/sens={m['recall']:.3f}  F1={m['f1']:.3f}  "
+                                 f"spec={m['specificity']:.3f}")
 
         top_imp = sup.get("top_importance_columns")
         if top_imp:
@@ -888,6 +1077,10 @@ def plot(results_dir: str = None, generate_plots: bool = True):
         plot_supervised_importance(d)
         plot_supervised_training_curves(d)
         plot_supervised_fold_trend(d)
+        plot_supervised_per_class_regression(d)
+        plot_classification_scores(d)
+        plot_classification_per_class(d)
+        plot_classification_confusion(d)
 
     print(f"\nAll plots saved to: {os.path.join(results_dir, 'plots')}/")
 
