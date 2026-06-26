@@ -1,0 +1,41 @@
+
+============================================================
+  PIPELINE SUMMARY
+============================================================
+  Embedding method  : identity
+  Window size (k)   : 1
+  Normalization     : standard
+  Distance metric   : euclidean
+  Embedding shape   : (68093, 9)
+
+  Clustering metrics:
+    algorithm  silhouette  davies_bouldin  calinski_harabasz      inertia  n_clusters  homogeneity
+       kmeans    0.248930        1.447649       18094.183271 340990.09375           4     0.249069
+agglomerative    0.215725        1.510767       14174.133771          NaN           4     0.222214
+     kmedoids    0.209984        1.627228       16537.032899 148622.00000           4     0.273720
+
+  Correlation analysis (internal - geometry vs cluster):
+    [kmeans]  Pearson r=-0.5683  Spearman rho=-0.5796  Intra/Inter=0.6374
+    [agglomerative]  Pearson r=-0.5171  Spearman rho=-0.5264  Intra/Inter=0.6856
+    [kmedoids]  Pearson r=-0.4588  Spearman rho=-0.4497  Intra/Inter=0.6852
+
+  External correlation (target-aware - embedding dist vs |dy|):
+    [kmeans]  Intra(P)=0.1825  Inter(P)=0.2927  Intra(S)=0.1671  Inter(S)=0.2770
+    [agglomerative]  Intra(P)=0.2519  Inter(P)=0.3110  Intra(S)=0.2218  Inter(S)=0.2961
+    [kmedoids]  Intra(P)=0.1704  Inter(P)=0.1936  Intra(S)=0.1666  Inter(S)=0.1967
+
+  Homogeneity (vs y-classes):
+    [kmeans]  Homogeneity=0.2491
+    [agglomerative]  Homogeneity=0.2222
+    [kmedoids]  Homogeneity=0.2737
+
+  Supervised REGRESSION probe (model=random_forest, trained on embeddings, time series CV):
+    R2=0.8451 +/- 0.0786   MAE=1.0533 +/- 0.5078   RMSE=2.3377 +/- 1.0107   NRMSE=0.1073 +/- 0.0464   (means +/- 95% CI)
+    Per-class regression (averaged across folds):
+      class 0: R2=-152.6176  MAE=0.4559  NRMSE=0.0892  (avg n_test=6765)
+      class 1: R2=0.0092  MAE=1.3130  NRMSE=0.0885  (avg n_test=2102)
+      class 2: R2=-0.3423  MAE=1.6964  NRMSE=0.1049  (avg n_test=1383)
+      class 3: R2=-7.4147  MAE=3.2662  NRMSE=0.2013  (avg n_test=1098)
+    Top columns by permutation importance: ghi(1.445), SunAzimuth(0.238), AirTemperature(0.085), cloud_opacity(0.072), dni(0.067)
+    Top columns by SHAP: ghi(5.006), SunAzimuth(1.270), AirTemperature(0.644), cloud_opacity(0.310), RelativeHumidity(0.259)
+============================================================

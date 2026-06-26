@@ -529,10 +529,10 @@ def run_supervised_probe(
     y_classes = np.asarray(y_classes).astype(int)
     rng = np.random.default_rng(random_seed)
 
-    do_reg = task in ("regression", "both")
-    do_clf = task in ("classification", "both")
+    do_reg = task == "regression"
+    do_clf = task == "classification"
     if not (do_reg or do_clf):
-        raise ValueError(f"Unknown task {task!r}. Choose 'regression', 'classification', 'both'.")
+        raise ValueError(f"Unknown task {task!r}. Choose 'regression' or 'classification'.")
 
     result = {
         "model": model_name,
@@ -578,8 +578,10 @@ def run_supervised_probe(
     if do_reg:
         core_model = _make_model(model_name, model_params, random_seed)
         core_model.fit(Z, y)
+
         def wrapper_predict(X_raw):
             return core_model.predict(embed_fn(np.asarray(X_raw, dtype=np.float32)))
+
         expl_target = y
         expl_kind = "regression output"
     else:
@@ -587,11 +589,13 @@ def run_supervised_probe(
         core_model = _make_classifier(model_name, model_params, random_seed, n_classes)
         sw = compute_sample_weight("balanced", y_classes) if class_weighted else None
         _fit_classifier(core_model, Z, y_classes, sample_weight=sw)
+
         # Explain the probability of the model's own predicted class (a continuous,
         # perturbation-sensitive scalar suitable for importance/SHAP).
         def wrapper_predict(X_raw):
             proba = core_model.predict_proba(embed_fn(np.asarray(X_raw, dtype=np.float32)))
             return proba.max(axis=1)
+
         expl_target = wrapper_predict(X_windows)  # self-reference baseline for perm importance
         expl_kind = "classification max-class probability"
 

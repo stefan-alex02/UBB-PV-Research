@@ -1,0 +1,41 @@
+
+============================================================
+  PIPELINE SUMMARY
+============================================================
+  Embedding method  : identity
+  Window size (k)   : 1
+  Normalization     : standard
+  Distance metric   : euclidean
+  Embedding shape   : (68093, 9)
+
+  Clustering metrics:
+    algorithm  silhouette  davies_bouldin  calinski_harabasz    inertia  n_clusters  homogeneity
+       kmeans    0.248930        1.447649       18094.183271 340990.125           4     0.249069
+agglomerative    0.215725        1.510767       14174.133771        NaN           4     0.222214
+     kmedoids    0.209984        1.627228       16537.032899 148622.000           4     0.273720
+
+  Correlation analysis (internal - geometry vs cluster):
+    [kmeans]  Pearson r=-0.5683  Spearman rho=-0.5796  Intra/Inter=0.6374
+    [agglomerative]  Pearson r=-0.5171  Spearman rho=-0.5264  Intra/Inter=0.6856
+    [kmedoids]  Pearson r=-0.4588  Spearman rho=-0.4497  Intra/Inter=0.6852
+
+  External correlation (target-aware - embedding dist vs |dy|):
+    [kmeans]  Intra(P)=0.1825  Inter(P)=0.2927  Intra(S)=0.1671  Inter(S)=0.2770
+    [agglomerative]  Intra(P)=0.2519  Inter(P)=0.3110  Intra(S)=0.2218  Inter(S)=0.2961
+    [kmedoids]  Intra(P)=0.1704  Inter(P)=0.1936  Intra(S)=0.1666  Inter(S)=0.1967
+
+  Homogeneity (vs y-classes):
+    [kmeans]  Homogeneity=0.2491
+    [agglomerative]  Homogeneity=0.2222
+    [kmedoids]  Homogeneity=0.2737
+
+  Supervised CLASSIFICATION probe (model=random_forest, weighted=True, time series CV):
+    BalAcc=0.8149 +/- 0.0290   F1=0.8107 +/- 0.0347   Prec=0.8107 +/- 0.0430   Rec/Sens=0.8149 +/- 0.0290   (macro means +/- 95% CI)
+    Per-class (averaged across folds):
+      class 0: P=0.980  R/sens=0.940  F1=0.960  spec=0.976
+      class 1: P=0.791  R/sens=0.853  F1=0.820  spec=0.949
+      class 2: P=0.716  R/sens=0.728  F1=0.721  spec=0.959
+      class 3: P=0.756  R/sens=0.738  F1=0.742  spec=0.969
+    Top columns by permutation importance: ghi(13.596), dni(7.971), SunAzimuth(5.124), RelativeHumidity(3.764), AirTemperature(3.334)
+    Top columns by SHAP: ghi(0.083), SunAzimuth(0.052), cloud_opacity(0.037), RelativeHumidity(0.032), dni(0.030)
+============================================================

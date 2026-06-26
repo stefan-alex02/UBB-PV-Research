@@ -3,7 +3,7 @@ Pipeline configuration. Edit this file to change hyperparameters and technique c
 """
 from datetime import datetime
 
-EXP_NAME = "win1_latest_y_smaller_ae_no_gmm"
+EXP_NAME = "win1_latest_y_identity"
 
 # Windowing
 WINDOW_SIZE = 1   # k: number of consecutive rows per sample
@@ -24,7 +24,7 @@ NORMALIZATION = "standard"
 
 # Embedding
 # Options: "identity", "autoencoder", "univariate_fs", "random_forest_fs", "relieff"
-EMBEDDING_METHOD = "autoencoder"
+EMBEDDING_METHOD = "identity"
 
 # Whether to standardize (z-score) the EMBEDDING before clustering/analysis.
 # Autoencoder latent dims often have very different scales; standardizing prevents
@@ -118,10 +118,10 @@ RUN_SUPERVISED = False
 # Which model to probe with: "xgboost", "random_forest", "mlp".
 SUPERVISED_MODEL = "random_forest"
 
-# Supervised task: "regression", "classification", or "both".
+# Supervised task: "regression" or "classification".
 #   regression     -> predict continuous SolarGeneration y (+ per-class breakdown)
 #   classification -> predict the discretized y-class (uses N_Y_CLASSES / LOW_CLASS_FRACTION)
-SUPERVISED_TASK = "both"
+SUPERVISED_TASK = "classification"
 
 # Classification: use balanced per-sample weights to counter the dominant night/low class.
 CLASS_WEIGHTED = True
@@ -156,7 +156,7 @@ MLP_MAX_ITER      = 300
 
 #  Misc
 RANDOM_SEED = 42
-DEVICE = "cuda"   # "cuda" or "cpu"
+DEVICE = "cpu"   # "cuda" or "cpu"
 
 # Dataset
 DATASET_PATH = "../../data/private_au/Solar_Energy_Generation_CK2.csv"

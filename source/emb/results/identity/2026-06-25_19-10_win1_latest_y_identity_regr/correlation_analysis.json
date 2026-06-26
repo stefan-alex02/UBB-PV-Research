@@ -1,0 +1,38 @@
+[
+  {
+    "tag": "kmeans",
+    "n_pairs": 9999,
+    "pearson_r": -0.5682780428111616,
+    "pearson_p": 0.0,
+    "spearman_rho": -0.5795972003874742,
+    "spearman_p": 0.0,
+    "intra_mean_dist": 2.8880581855773926,
+    "inter_mean_dist": 4.53127384185791,
+    "intra_inter_ratio": 0.6373612284660339,
+    "algorithm": "kmeans"
+  },
+  {
+    "tag": "agglomerative",
+    "n_pairs": 10000,
+    "pearson_r": -0.5171362726339402,
+    "pearson_p": 0.0,
+    "spearman_rho": -0.5264074550229914,
+    "spearman_p": 0.0,
+    "intra_mean_dist": 3.1191136837005615,
+    "inter_mean_dist": 4.549568176269531,
+    "intra_inter_ratio": 0.685584545135498,
+    "algorithm": "agglomerative"
+  },
+  {
+    "tag": "kmedoids",
+    "n_pairs": 10000,
+    "pearson_r": -0.4587593847153767,
+    "pearson_p": 0.0,
+    "spearman_rho": -0.449745580220884,
+    "spearman_p": 0.0,
+    "intra_mean_dist": 2.9964959621429443,
+    "inter_mean_dist": 4.373227596282959,
+    "intra_inter_ratio": 0.6851909756660461,
+    "algorithm": "kmedoids"
+  }
+]
