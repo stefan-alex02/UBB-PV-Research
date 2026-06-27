@@ -3,7 +3,7 @@ Pipeline configuration. Edit this file to change hyperparameters and technique c
 """
 from datetime import datetime
 
-EXP_NAME = "win1_latest_y_identity"
+EXP_NAME = "win1_latest_y_smaller_ae_regr_"
 
 # Windowing
 WINDOW_SIZE = 1   # k: number of consecutive rows per sample
@@ -24,7 +24,7 @@ NORMALIZATION = "standard"
 
 # Embedding
 # Options: "identity", "autoencoder", "univariate_fs", "random_forest_fs", "relieff"
-EMBEDDING_METHOD = "identity"
+EMBEDDING_METHOD = "autoencoder"
 
 # Whether to standardize (z-score) the EMBEDDING before clustering/analysis.
 # Autoencoder latent dims often have very different scales; standardizing prevents
@@ -113,15 +113,15 @@ EXT_MAX_PAIRS_PER_GROUP = 40_000   # None = use all pairs (can be very slow for 
 # A frozen probe: train a regressor to predict y from the (already-computed)
 # representation, with time-series cross-validation. Answers "does this embedding
 # carry forecast-relevant signal?" and provides interpretable feature importances.
-RUN_SUPERVISED = False
+RUN_SUPERVISED = True
 
 # Which model to probe with: "xgboost", "random_forest", "mlp".
-SUPERVISED_MODEL = "random_forest"
+SUPERVISED_MODEL = "xgboost"
 
 # Supervised task: "regression" or "classification".
 #   regression     -> predict continuous SolarGeneration y (+ per-class breakdown)
 #   classification -> predict the discretized y-class (uses N_Y_CLASSES / LOW_CLASS_FRACTION)
-SUPERVISED_TASK = "classification"
+SUPERVISED_TASK = "regression"
 
 # Classification: use balanced per-sample weights to counter the dominant night/low class.
 CLASS_WEIGHTED = True
