@@ -576,7 +576,8 @@ def plot_target_distribution(d: dict):
         ax.axvline(e, color="red", linestyle="--", linewidth=1)
 
     ax.set_xlabel("Solar Generation (raw units)")
-    ax.set_ylabel("Count")
+    ax.set_ylabel("Count (log scale)")
+    ax.set_yscale("log")
     ax.set_title(f"Target distribution with class boundaries  (y_max = {y_max:.1f})",
                  fontweight="bold")
 

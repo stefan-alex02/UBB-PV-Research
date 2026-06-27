@@ -3,10 +3,10 @@ Pipeline configuration. Edit this file to change hyperparameters and technique c
 """
 from datetime import datetime
 
-EXP_NAME = "win1_latest_y_smaller_ae_regr_xgb"
+EXP_NAME = "win3_latest_y_smaller_ae_regr_mlp"
 
 # Windowing
-WINDOW_SIZE = 1   # k: number of consecutive rows per sample
+WINDOW_SIZE = 3   # k: number of consecutive rows per sample
 
 # Windowing mode — how y (target) is associated with each window:
 #   "next_y"   : window keeps ALL columns (incl. SolarGeneration); target y is the
@@ -33,13 +33,13 @@ NORMALIZE_EMBEDDINGS = False
 
 # Autoencoder settings (used when EMBEDDING_METHOD == "autoencoder") ---
 # AE_LATENT_DIM    = 32       # Embedding dimension
-AE_LATENT_DIM    = 8       # Embedding dimension
+AE_LATENT_DIM    = 16       # Embedding dimension
 # Encoder hidden layer sizes (decoder mirrors this). Two options:
 #   - explicit list, e.g. [256, 128, 64]  (used as-is)
 #   - "auto"  → geometric funnel auto-derived from input dim & latent dim,
 #               scaling automatically with WINDOW_SIZE. Recommended.
 # AE_HIDDEN_DIMS   = "auto"
-AE_HIDDEN_DIMS   = [64, 32, 16]
+AE_HIDDEN_DIMS   = [128, 64, 32]
 AE_AUTO_N_LAYERS = 2        # number of hidden layers when AE_HIDDEN_DIMS == "auto"
 AE_EPOCHS        = 50
 AE_BATCH_SIZE    = 64
@@ -116,7 +116,7 @@ EXT_MAX_PAIRS_PER_GROUP = 40_000   # None = use all pairs (can be very slow for 
 RUN_SUPERVISED = True
 
 # Which model to probe with: "xgboost", "random_forest", "mlp".
-SUPERVISED_MODEL = "xgboost"
+SUPERVISED_MODEL = "mlp"
 
 # Supervised task: "regression" or "classification".
 #   regression     -> predict continuous SolarGeneration y (+ per-class breakdown)
@@ -156,11 +156,11 @@ MLP_MAX_ITER      = 300
 
 #  Misc
 RANDOM_SEED = 42
-DEVICE = "cuda"   # "cuda" or "cpu"
+DEVICE = "cpu"   # "cuda" or "cpu"
 
 # Dataset
 DATASET_PATH = "../../data/private_au/Solar_Energy_Generation_CK2.csv"
 TIMESTAMP_COL = "Timestamp"          # Column to drop before processing
 _now = datetime.now() # underscore to avoid saving it in the results json
 RESULTS_DIR   = f"results/{EMBEDDING_METHOD}/{_now.strftime('%Y-%m-%d_%H-%M')}_{EXP_NAME}"
-PLOT = False
+PLOT = True
