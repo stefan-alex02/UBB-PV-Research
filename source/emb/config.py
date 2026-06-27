@@ -3,7 +3,7 @@ Pipeline configuration. Edit this file to change hyperparameters and technique c
 """
 from datetime import datetime
 
-EXP_NAME = "win1_latest_y_smaller_ae_regr_"
+EXP_NAME = "win1_latest_y_smaller_ae_regr_xgb"
 
 # Windowing
 WINDOW_SIZE = 1   # k: number of consecutive rows per sample
@@ -156,7 +156,7 @@ MLP_MAX_ITER      = 300
 
 #  Misc
 RANDOM_SEED = 42
-DEVICE = "cpu"   # "cuda" or "cpu"
+DEVICE = "cuda"   # "cuda" or "cpu"
 
 # Dataset
 DATASET_PATH = "../../data/private_au/Solar_Energy_Generation_CK2.csv"
