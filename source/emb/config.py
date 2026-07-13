@@ -134,7 +134,7 @@ CV_N_SPLITS = 5
 RUN_SHAP = True          # raw-feature SHAP via KernelSHAP through the embedding wrapper (can be slow)
 SHAP_MAX_SAMPLES = 200   # samples explained by SHAP (cost scales with this; keep modest)
 CV_VAL_FRACTION = 0.15   # tail of each training fold used as internal validation for learning curves (0 disables for xgboost)
-SUPERVISED_TOP_N = 15    # how many top features/columns to store and plot
+SUPERVISED_TOP_N = 30    # how many top features/columns to store and plot
 
 # --- XGBoost params ---
 XGB_N_ESTIMATORS = 300
