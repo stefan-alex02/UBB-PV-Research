@@ -3,10 +3,10 @@ Pipeline configuration. Edit this file to change hyperparameters and technique c
 """
 from datetime import datetime
 
-EXP_NAME = "win3_latest_y_smaller_ae_regr_mlp"
+EXP_NAME = "win5_latest_y_default_ae"
 
 # Windowing
-WINDOW_SIZE = 3   # k: number of consecutive rows per sample
+WINDOW_SIZE = 5   # k: number of consecutive rows per sample
 
 # Windowing mode — how y (target) is associated with each window:
 #   "next_y"   : window keeps ALL columns (incl. SolarGeneration); target y is the
@@ -33,13 +33,13 @@ NORMALIZE_EMBEDDINGS = False
 
 # Autoencoder settings (used when EMBEDDING_METHOD == "autoencoder") ---
 # AE_LATENT_DIM    = 32       # Embedding dimension
-AE_LATENT_DIM    = 16       # Embedding dimension
+AE_LATENT_DIM    = 32       # Embedding dimension
 # Encoder hidden layer sizes (decoder mirrors this). Two options:
 #   - explicit list, e.g. [256, 128, 64]  (used as-is)
 #   - "auto"  → geometric funnel auto-derived from input dim & latent dim,
 #               scaling automatically with WINDOW_SIZE. Recommended.
 # AE_HIDDEN_DIMS   = "auto"
-AE_HIDDEN_DIMS   = [128, 64, 32]
+AE_HIDDEN_DIMS   = [256, 128, 64]
 AE_AUTO_N_LAYERS = 2        # number of hidden layers when AE_HIDDEN_DIMS == "auto"
 AE_EPOCHS        = 50
 AE_BATCH_SIZE    = 64
@@ -60,8 +60,8 @@ RELIEFF_N_NEIGHBORS = 10
 # Clustering
 # List any subset of: "kmeans", "dbscan", "agglomerative", "kmedoids", "gmm".
 # Each selected method is computed and evaluated independently.
-# CLUSTERING_METHODS = ["kmeans", "agglomerative", "kmedoids", "gmm"]
-CLUSTERING_METHODS = ["kmeans", "agglomerative", "kmedoids"]
+CLUSTERING_METHODS = ["kmeans", "agglomerative", "kmedoids", "gmm"]
+# CLUSTERING_METHODS = ["kmeans", "agglomerative", "kmedoids"]
 
 # --- K-Means ---
 KMEANS_K = 4
@@ -113,7 +113,7 @@ EXT_MAX_PAIRS_PER_GROUP = 40_000   # None = use all pairs (can be very slow for 
 # A frozen probe: train a regressor to predict y from the (already-computed)
 # representation, with time-series cross-validation. Answers "does this embedding
 # carry forecast-relevant signal?" and provides interpretable feature importances.
-RUN_SUPERVISED = True
+RUN_SUPERVISED = False
 
 # Which model to probe with: "xgboost", "random_forest", "mlp".
 SUPERVISED_MODEL = "mlp"
