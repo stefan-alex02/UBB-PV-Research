@@ -1,0 +1,414 @@
+{
+  "model": "random_forest",
+  "task": "regression",
+  "class_weighted": true,
+  "top_n": 30,
+  "feature_names": [
+    "AirTemperature_t-1",
+    "DewPointTemperature_t-1",
+    "RelativeHumidity_t-1",
+    "SunAzimuth_t-1",
+    "cloud_opacity_t-1",
+    "dni_t-1",
+    "ghi_t-1",
+    "precipitable_water_t-1",
+    "wind_speed_10m_t-1",
+    "AirTemperature_t-0",
+    "DewPointTemperature_t-0",
+    "RelativeHumidity_t-0",
+    "SunAzimuth_t-0",
+    "cloud_opacity_t-0",
+    "dni_t-0",
+    "ghi_t-0",
+    "precipitable_water_t-0",
+    "wind_speed_10m_t-0"
+  ],
+  "regression": {
+    "cv_folds": [
+      {
+        "r2": 0.7033983791390446,
+        "mae": 1.5832182232948855,
+        "rmse": 2.43072342672969,
+        "nrmse": 0.11161371293757053,
+        "fold": 1,
+        "n_train": 11352,
+        "n_test": 11348
+      },
+      {
+        "r2": 0.6650371069483751,
+        "mae": 2.2537330862766805,
+        "rmse": 3.9931823868494294,
+        "nrmse": 0.1833585457448831,
+        "fold": 2,
+        "n_train": 22700,
+        "n_test": 11348
+      },
+      {
+        "r2": 0.7731417903208937,
+        "mae": 1.8866934065644743,
+        "rmse": 3.2545377986834163,
+        "nrmse": 0.1494415381084485,
+        "fold": 3,
+        "n_train": 34048,
+        "n_test": 11348
+      },
+      {
+        "r2": 0.6490570072796206,
+        "mae": 1.4310007338322444,
+        "rmse": 2.4690988788594224,
+        "nrmse": 0.11337583307462787,
+        "fold": 4,
+        "n_train": 45396,
+        "n_test": 11348
+      },
+      {
+        "r2": 0.48211910347075304,
+        "mae": 3.3398382752406137,
+        "rmse": 4.970617728989633,
+        "nrmse": 0.2282403231174121,
+        "fold": 5,
+        "n_train": 56744,
+        "n_test": 11348
+      }
+    ],
+    "cv_summary": {
+      "r2_mean": 0.6545506774317374,
+      "r2_std": 0.09625252550742215,
+      "r2_ci95": 0.0943274749972737,
+      "mae_mean": 2.0988967450417797,
+      "mae_std": 0.6813148832046483,
+      "mae_ci95": 0.6676885855405552,
+      "rmse_mean": 3.4236320440223187,
+      "rmse_std": 0.9636541134665342,
+      "rmse_ci95": 0.9443810311972035,
+      "nrmse_mean": 0.15720599059658844,
+      "nrmse_std": 0.04424897230544678,
+      "nrmse_ci95": 0.04336399285933785
+    },
+    "cv_fold_histories": [],
+    "cv_val_fraction": 0.15,
+    "per_class": {
+      "0": {
+        "r2_mean": -291.75090208931067,
+        "mae_mean": 1.4180786310092766,
+        "rmse_mean": 2.8579403755510686,
+        "nrmse_mean": 0.1312306176678497,
+        "avg_n_test": 6765.2,
+        "n_folds": 5
+      },
+      "1": {
+        "r2_mean": -1.3422335225768829,
+        "mae_mean": 2.3547316942162033,
+        "rmse_mean": 3.01603292973013,
+        "nrmse_mean": 0.13848989561188513,
+        "avg_n_test": 2102.2,
+        "n_folds": 5
+      },
+      "2": {
+        "r2_mean": -3.938693159304532,
+        "mae_mean": 3.476179745373232,
+        "rmse_mean": 4.434205199825898,
+        "nrmse_mean": 0.2036093867517935,
+        "avg_n_test": 1383.0,
+        "n_folds": 5
+      },
+      "3": {
+        "r2_mean": -19.583903577061015,
+        "mae_mean": 4.679863997251069,
+        "rmse_mean": 5.888747025098292,
+        "nrmse_mean": 0.2703988914549531,
+        "avg_n_test": 1097.6,
+        "n_folds": 5
+      }
+    }
+  },
+  "embed_consistency_max_abs_diff": 0.0,
+  "explain_target_kind": "regression output",
+  "importance_kind": "permutation (raw, via wrapper)",
+  "importances": [
+    0.23385435964684423,
+    0.19190459131963084,
+    0.18181472933604334,
+    0.24204489931784598,
+    0.11494601440637806,
+    0.19732808918169012,
+    0.3150838783823696,
+    0.1495652060793265,
+    0.1658618095415923,
+    0.21471243520743336,
+    0.17083261860507767,
+    0.19316562278524355,
+    0.21838006099678128,
+    0.12394058679170246,
+    0.17933173285593107,
+    0.26506032754880765,
+    0.15235459702548523,
+    0.17134719228802855
+  ],
+  "importances_by_column": {
+    "AirTemperature": 0.2242833974271388,
+    "DewPointTemperature": 0.18136860496235424,
+    "RelativeHumidity": 0.18749017606064344,
+    "SunAzimuth": 0.23021248015731363,
+    "cloud_opacity": 0.11944330059904026,
+    "dni": 0.18832991101881058,
+    "ghi": 0.2900721029655886,
+    "precipitable_water": 0.15095990155240585,
+    "wind_speed_10m": 0.16860450091481044
+  },
+  "top_importance_features": [
+    {
+      "name": "ghi_t-1",
+      "value": 0.3150838783823696
+    },
+    {
+      "name": "ghi_t-0",
+      "value": 0.26506032754880765
+    },
+    {
+      "name": "SunAzimuth_t-1",
+      "value": 0.24204489931784598
+    },
+    {
+      "name": "AirTemperature_t-1",
+      "value": 0.23385435964684423
+    },
+    {
+      "name": "SunAzimuth_t-0",
+      "value": 0.21838006099678128
+    },
+    {
+      "name": "AirTemperature_t-0",
+      "value": 0.21471243520743336
+    },
+    {
+      "name": "dni_t-1",
+      "value": 0.19732808918169012
+    },
+    {
+      "name": "RelativeHumidity_t-0",
+      "value": 0.19316562278524355
+    },
+    {
+      "name": "DewPointTemperature_t-1",
+      "value": 0.19190459131963084
+    },
+    {
+      "name": "RelativeHumidity_t-1",
+      "value": 0.18181472933604334
+    },
+    {
+      "name": "dni_t-0",
+      "value": 0.17933173285593107
+    },
+    {
+      "name": "wind_speed_10m_t-0",
+      "value": 0.17134719228802855
+    },
+    {
+      "name": "DewPointTemperature_t-0",
+      "value": 0.17083261860507767
+    },
+    {
+      "name": "wind_speed_10m_t-1",
+      "value": 0.1658618095415923
+    },
+    {
+      "name": "precipitable_water_t-0",
+      "value": 0.15235459702548523
+    },
+    {
+      "name": "precipitable_water_t-1",
+      "value": 0.1495652060793265
+    },
+    {
+      "name": "cloud_opacity_t-0",
+      "value": 0.12394058679170246
+    },
+    {
+      "name": "cloud_opacity_t-1",
+      "value": 0.11494601440637806
+    }
+  ],
+  "top_importance_columns": [
+    {
+      "name": "ghi",
+      "value": 0.2900721029655886
+    },
+    {
+      "name": "SunAzimuth",
+      "value": 0.23021248015731363
+    },
+    {
+      "name": "AirTemperature",
+      "value": 0.2242833974271388
+    },
+    {
+      "name": "dni",
+      "value": 0.18832991101881058
+    },
+    {
+      "name": "RelativeHumidity",
+      "value": 0.18749017606064344
+    },
+    {
+      "name": "DewPointTemperature",
+      "value": 0.18136860496235424
+    },
+    {
+      "name": "wind_speed_10m",
+      "value": 0.16860450091481044
+    },
+    {
+      "name": "precipitable_water",
+      "value": 0.15095990155240585
+    },
+    {
+      "name": "cloud_opacity",
+      "value": 0.11944330059904026
+    }
+  ],
+  "shap_mean_abs": [
+    0.5415899719435798,
+    0.05453929120009695,
+    0.04689223990579788,
+    0.4730934572311717,
+    0.04374882340414531,
+    0.8239430978576578,
+    1.712204232130851,
+    0.045550739469630355,
+    0.210387572414853,
+    0.2759782848728048,
+    0.07316383202502033,
+    0.14108798257966193,
+    0.314975115257927,
+    0.16957886430307906,
+    0.6243795234722408,
+    1.4993739447459324,
+    0.09251493706019052,
+    0.11337985990140764
+  ],
+  "shap_by_column": {
+    "AirTemperature": 0.40878412840819234,
+    "DewPointTemperature": 0.06385156161255864,
+    "RelativeHumidity": 0.0939901112427299,
+    "SunAzimuth": 0.39403428624454934,
+    "cloud_opacity": 0.10666384385361219,
+    "dni": 0.7241613106649494,
+    "ghi": 1.6057890884383919,
+    "precipitable_water": 0.06903283826491044,
+    "wind_speed_10m": 0.16188371615813033
+  },
+  "top_shap_features": [
+    {
+      "name": "ghi_t-1",
+      "value": 1.712204232130851
+    },
+    {
+      "name": "ghi_t-0",
+      "value": 1.4993739447459324
+    },
+    {
+      "name": "dni_t-1",
+      "value": 0.8239430978576578
+    },
+    {
+      "name": "dni_t-0",
+      "value": 0.6243795234722408
+    },
+    {
+      "name": "AirTemperature_t-1",
+      "value": 0.5415899719435798
+    },
+    {
+      "name": "SunAzimuth_t-1",
+      "value": 0.4730934572311717
+    },
+    {
+      "name": "SunAzimuth_t-0",
+      "value": 0.314975115257927
+    },
+    {
+      "name": "AirTemperature_t-0",
+      "value": 0.2759782848728048
+    },
+    {
+      "name": "wind_speed_10m_t-1",
+      "value": 0.210387572414853
+    },
+    {
+      "name": "cloud_opacity_t-0",
+      "value": 0.16957886430307906
+    },
+    {
+      "name": "RelativeHumidity_t-0",
+      "value": 0.14108798257966193
+    },
+    {
+      "name": "wind_speed_10m_t-0",
+      "value": 0.11337985990140764
+    },
+    {
+      "name": "precipitable_water_t-0",
+      "value": 0.09251493706019052
+    },
+    {
+      "name": "DewPointTemperature_t-0",
+      "value": 0.07316383202502033
+    },
+    {
+      "name": "DewPointTemperature_t-1",
+      "value": 0.05453929120009695
+    },
+    {
+      "name": "RelativeHumidity_t-1",
+      "value": 0.04689223990579788
+    },
+    {
+      "name": "precipitable_water_t-1",
+      "value": 0.045550739469630355
+    },
+    {
+      "name": "cloud_opacity_t-1",
+      "value": 0.04374882340414531
+    }
+  ],
+  "top_shap_columns": [
+    {
+      "name": "ghi",
+      "value": 1.6057890884383919
+    },
+    {
+      "name": "dni",
+      "value": 0.7241613106649494
+    },
+    {
+      "name": "AirTemperature",
+      "value": 0.40878412840819234
+    },
+    {
+      "name": "SunAzimuth",
+      "value": 0.39403428624454934
+    },
+    {
+      "name": "wind_speed_10m",
+      "value": 0.16188371615813033
+    },
+    {
+      "name": "cloud_opacity",
+      "value": 0.10666384385361219
+    },
+    {
+      "name": "RelativeHumidity",
+      "value": 0.0939901112427299
+    },
+    {
+      "name": "precipitable_water",
+      "value": 0.06903283826491044
+    },
+    {
+      "name": "DewPointTemperature",
+      "value": 0.06385156161255864
+    }
+  ]
+}
