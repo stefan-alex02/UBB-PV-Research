@@ -1,18 +1,18 @@
 """
 All embedding / feature-extraction methods.
 
-Supported methods
+Methods
 -----------------
 identity         — Raw window vectors (no transformation).
-autoencoder      — PyTorch autoencoder (see autoencoder.py).
+autoencoder      — PyTorch autoencoder.
 univariate_fs    — Univariate feature selection via F-statistic (sklearn).
 random_forest_fs — Feature importance from a Random Forest regressor.
 relieff          — ReliefF feature weighting (skrebate).
 """
 
 import numpy as np
-from sklearn.feature_selection import SelectKBest, f_regression
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.feature_selection import SelectKBest, f_regression
 from skrebate import ReliefF
 
 import config
@@ -60,8 +60,6 @@ def make_embed_fn(method: str, embed_meta: dict, scaler=None, device: str = "cpu
         raise ValueError(f"make_embed_fn: unknown method {method!r}.")
 
 
-# Public entry point
-
 def get_embeddings(X_windows: np.ndarray, method: str, y: np.ndarray = None) -> tuple[np.ndarray, dict]:
     """
     Compute embeddings from windowed vectors.
@@ -101,8 +99,6 @@ def get_embeddings(X_windows: np.ndarray, method: str, y: np.ndarray = None) -> 
             "Choose from: identity, autoencoder, univariate_fs, random_forest_fs, relieff."
         )
 
-
-# Methods
 
 def _identity(X: np.ndarray) -> tuple[np.ndarray, dict]:
     print(f"[Embedding] Identity: keeping all {X.shape[1]} dimensions.")
@@ -145,7 +141,7 @@ def _univariate_fs(X: np.ndarray, k: int, y: np.ndarray = None) -> tuple[np.ndar
     selected_indices = selector.get_support(indices=True).tolist()
 
     scores = selector.scores_
-    print(f"[Embedding] Univariate FS: {X.shape[1]} → {k} features selected.")
+    print(f"[Embedding] Univariate FS: {X.shape[1]} -> {k} features selected.")
     print(f"            Top-5 feature indices by F-score: {np.argsort(scores)[::-1][:5].tolist()}")
     return X_sel.astype(np.float32), {
         "method": "univariate_fs",
@@ -173,7 +169,7 @@ def _random_forest_fs(X: np.ndarray, k: int, n_estimators: int, y: np.ndarray = 
     top_k = np.argsort(importances)[::-1][:k]
     X_sel = X[:, top_k]
 
-    print(f"[Embedding] RF FS: {X.shape[1]} → {k} features selected.")
+    print(f"[Embedding] RF FS: {X.shape[1]} -> {k} features selected.")
     print(f"            Top-5 feature indices by importance: {top_k[:5].tolist()}")
     return X_sel.astype(np.float32), {
         "method": "random_forest_fs",
@@ -196,7 +192,7 @@ def _relieff(X: np.ndarray, k: int, n_neighbors: int, y: np.ndarray = None) -> t
     feature_importances = fs.feature_importances_
     selected_indices = np.argsort(feature_importances)[::-1][:k].tolist()
 
-    print(f"[Embedding] ReliefF: {X.shape[1]} → {k} features selected.")
+    print(f"[Embedding] ReliefF: {X.shape[1]} -> {k} features selected.")
     return X_sel.astype(np.float32), {
         "method": "relieff",
         "selected_indices": selected_indices,

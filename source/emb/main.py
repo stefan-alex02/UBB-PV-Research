@@ -1,9 +1,9 @@
 import os
 import sys
 import time
+
 import numpy as np
 
-# Make project root importable
 sys.path.insert(0, os.path.dirname(__file__))
 
 import config
@@ -30,7 +30,7 @@ def main():
     print("  PV Energy Forecasting: Unsupervised Embedding Pipeline")
     print("=" * 70)
 
-    # 1. Load & normalise
+    # Load & normalise
     X, y_raw, feature_names, target_idx = load_and_preprocess(
         path=config.DATASET_PATH,
         timestamp_col=config.TIMESTAMP_COL,
@@ -38,7 +38,7 @@ def main():
         target_col=config.TARGET_COL,
     )
 
-    # 2. Window (mode-dependent target alignment)
+    # Windowing
     X_windows, y = build_windows(
         X, y_raw,
         k=config.WINDOW_SIZE,
@@ -46,17 +46,17 @@ def main():
         target_idx=target_idx,
     )
 
-    # 2b. Discretize target into classes (for homogeneity)
+    # Discretize target into classes
     y_classes, class_info = discretize_target(
         y, n_classes=config.N_Y_CLASSES, low_fraction=config.LOW_CLASS_FRACTION
     )
 
-    # 3. Embedding
+    # Embedding
     Z, embed_meta = get_embeddings(X_windows, method=config.EMBEDDING_METHOD, y=y)
     print(f"\n[Embedding] Output shape: {Z.shape}")
-    ae_history = embed_meta.get("history")   # None for non-AE methods
+    ae_history = embed_meta.get("history")
 
-    # 3b. Optional embedding standardization
+    # Embedding standardization
     embed_scaler = None
     if config.NORMALIZE_EMBEDDINGS:
         from sklearn.preprocessing import StandardScaler
@@ -64,10 +64,10 @@ def main():
         Z = embed_scaler.transform(Z).astype(np.float32)
         print("[Embedding] Standardized (z-scored) embedding dimensions before clustering.")
 
-    # Frozen transform raw->embedding (for supervised explainability on raw features)
+    # Transform raw->embedding
     embed_fn = make_embed_fn(config.EMBEDDING_METHOD, embed_meta, embed_scaler, config.DEVICE)
 
-    # Per-window feature names (for FS importance plots)
+    # Per-window feature names
     if config.WINDOWING_MODE == "latest_y":
         feat_no_target = [c for c in feature_names if c != config.TARGET_COL]
         window_feature_names = [f"{f}_t-{config.WINDOW_SIZE-1-i}"
@@ -76,7 +76,7 @@ def main():
         window_feature_names = [f"{f}_t-{config.WINDOW_SIZE-1-i}"
                                 for i in range(config.WINDOW_SIZE) for f in feature_names]
 
-    # 4. Clustering
+    # Clustering
     cluster_params = {
         "kmeans_k":          config.KMEANS_K,
         "kmeans_init":       config.KMEANS_INIT,
@@ -105,7 +105,7 @@ def main():
         random_seed     = config.RANDOM_SEED,
     )
 
-    # 5. Analysis
+    # Analysis
     print(f"\n{'='*70}")
     print("  Qualitative / Quantitative Analysis")
     print(f"{'='*70}")
@@ -119,7 +119,7 @@ def main():
         labels = res["labels"]
         print(f"\n--- {alg_name.upper()} ---")
 
-        # Internal: embedding distance vs same-cluster indicator
+        # Embedding distance vs same-cluster indicator
         corr = pairwise_correlation_analysis(
             Z=Z, labels=labels, method=config.CORRELATION_METHOD,
             sample_pairs=config.ANALYSIS_SAMPLE_PAIRS, rng=rng, tag=alg_name,
@@ -127,7 +127,7 @@ def main():
         corr["algorithm"] = alg_name
         correlation_results.append(corr)
 
-        # External: embedding distance vs |Δy| (target-aware), intra & inter
+        # Embedding distance vs delta y, intra & inter
         ext = external_correlation_analysis(
             Z=Z, y=y, labels=labels, method=config.CORRELATION_METHOD,
             max_pairs=config.EXT_MAX_PAIRS_PER_GROUP, rng=rng, tag=alg_name,
@@ -144,7 +144,7 @@ def main():
 
     compare_clusterings(clustering_results)
 
-    # 5b. Supervised forecasting probe (frozen embeddings → y)
+    # Supervised forecasting
     supervised_results = None
     if config.RUN_SUPERVISED:
         sup_params = {
@@ -177,7 +177,7 @@ def main():
             top_n=config.SUPERVISED_TOP_N,
         )
 
-    # 6. Save results
+    # Save results
     config_dict = {k: getattr(config, k) for k in dir(config) if not k.startswith("_")}
 
     save_results(

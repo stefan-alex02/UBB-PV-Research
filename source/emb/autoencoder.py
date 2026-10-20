@@ -17,9 +17,9 @@ def auto_hidden_dims(input_dim: int, latent_dim: int, n_layers: int = 2) -> list
     rather than making one big jump). The decoder mirrors these sizes.
 
     Examples (latent_dim=32):
-        input=66,  n_layers=2 → [52, 41]
-        input=132, n_layers=2 → [82, 51]
-        input=264, n_layers=3 → [156, 92, 54]
+        input=66,  n_layers=2 -> [52, 41]
+        input=132, n_layers=2 -> [82, 51]
+        input=264, n_layers=3 -> [156, 92, 54]
 
     If input_dim <= latent_dim (little/nothing to compress), returns a flat stack
     at latent_dim so the model still trains without expanding.
@@ -52,8 +52,8 @@ class Autoencoder(nn.Module):
         """
         Symmetric autoencoder.
 
-        Encoder: input_dim → hidden_dims → latent_dim
-        Decoder: latent_dim → hidden_dims[::-1] → input_dim
+        Encoder: input_dim -> hidden_dims -> latent_dim
+        Decoder: latent_dim -> hidden_dims[::-1] -> input_dim
         """
         super().__init__()
         encoder_dims = [input_dim] + hidden_dims + [latent_dim]
@@ -106,7 +106,7 @@ def train_autoencoder(
 
     input_dim = X.shape[1]
 
-    # Resolve architecture: auto-derive if hidden_dims is None or "auto".
+    # Rauto-derive if hidden_dims is None or "auto"
     if hidden_dims is None or hidden_dims == "auto":
         hidden_dims = auto_hidden_dims(input_dim, latent_dim, auto_n_layers)
         print(f"[Autoencoder] Auto-derived hidden dims (input={input_dim}, "
@@ -116,7 +116,7 @@ def train_autoencoder(
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     criterion = nn.MSELoss()
 
-    # Train / validation split
+    # Train / val split
     tensor_X = torch.tensor(X, dtype=torch.float32)
     full_ds = TensorDataset(tensor_X)
 
@@ -132,7 +132,7 @@ def train_autoencoder(
 
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, drop_last=False)
 
-    print(f"\n[Autoencoder] Architecture: {input_dim} → {hidden_dims} → {latent_dim} → {list(reversed(hidden_dims))} → {input_dim}")
+    print(f"\n[Autoencoder] Architecture: {input_dim} -> {hidden_dims} -> {latent_dim} -> {list(reversed(hidden_dims))} -> {input_dim}")
     print(f"[Autoencoder] Parameters: {sum(p.numel() for p in model.parameters()):,}")
     print(f"[Autoencoder] Train samples: {n_train}  |  Val samples: {n_val}  "
           f"|  weight_decay (L2): {weight_decay}")

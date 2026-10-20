@@ -1,18 +1,18 @@
 """
 Qualitative & quantitative analysis:
 
-1. Pairwise embedding distance vs. cluster-assignment distance (Pearson/Spearman).
-2. Summary statistics per cluster.
-3. Save all results to disk.
+- Pairwise embedding distance vs. cluster-assignment distance (Pearson/Spearman).
+- Summary statistics per cluster.
+- Save all results.
 """
 
-import os
 import json
+import os
+from itertools import combinations
+
 import numpy as np
 import pandas as pd
-from itertools import combinations
 from scipy import stats
-from scipy.spatial.distance import pdist, squareform
 from sklearn.metrics import adjusted_rand_score, homogeneity_score
 
 
@@ -33,7 +33,7 @@ def pairwise_correlation_analysis(
     2. Compute their Euclidean distance in the embedding space.
     3. Compute a binary "same cluster" indicator (1 = same, 0 = different; noise=-1 excluded).
     4. Compute Pearson / Spearman correlation between (distances, same-cluster-indicator).
-       - Negative correlation expected: closer → more likely same cluster.
+       - Negative correlation expected: closer -> more likely same cluster.
 
     Additionally, compute the ratio of intra-cluster vs. inter-cluster mean distance
     as a compactness measure.
@@ -137,8 +137,6 @@ def _clean_labels(labels: np.ndarray) -> np.ndarray:
     return out
 
 
-# External (target-aware) intra/inter correlation
-
 def _corr(d: np.ndarray, dy: np.ndarray, method: str) -> tuple[float, float]:
     """Correlation between embedding distances d and target gaps dy.
        Returns (r, p). If computation not possible returns (nan, nan).
@@ -159,7 +157,7 @@ def _sample_pairs_within(idx: np.ndarray, max_pairs: int | None, rng) -> tuple[n
     if max_pairs is None or total <= max_pairs:
         pairs = np.array(list(combinations(idx, 2)))
         return pairs[:, 0], pairs[:, 1]
-    # Subsample: draw random distinct pairs
+    # Subsample
     a = rng.choice(idx, size=max_pairs, replace=True)
     b = rng.choice(idx, size=max_pairs, replace=True)
     keep = a != b
@@ -188,7 +186,7 @@ def external_correlation_analysis(
     tag: str = "",
 ) -> dict:
     """
-    External intra/inter cluster correlation between embedding distance and |Δy|.
+    External intra/inter cluster correlation between embedding distance and |delta y|.
 
     IntraCorr(c_i) = corr( {||z_a - z_b|| : a,b in c_i},  {|y_a - y_b| : a,b in c_i} )
     IntraCorr(c)   = mean over clusters of IntraCorr(c_i)
@@ -272,8 +270,6 @@ def external_correlation_analysis(
     return result
 
 
-# Homogeneity (against discretized y classes)
-
 def homogeneity_analysis(labels: np.ndarray, y_classes: np.ndarray, tag: str = "") -> dict:
     """
     Homogeneity score: each cluster should contain only members of a single y-class.
@@ -288,8 +284,6 @@ def homogeneity_analysis(labels: np.ndarray, y_classes: np.ndarray, tag: str = "
     print(f"  [{tag}] Homogeneity (vs y-classes) = {h:.4f}")
     return {"tag": tag, "homogeneity": float(h)}
 
-
-# Persist results
 
 def save_results(
     output_dir: str,
@@ -326,7 +320,7 @@ def save_results(
     for name, res in clustering_results.items():
         np.save(os.path.join(output_dir, f"labels_{name}.npy"), res["labels"])
 
-    # Cluster metrics (merge in homogeneity per algorithm)
+    # Cluster metrics
     homo_by_alg = {r["tag"]: r.get("homogeneity") for r in (homogeneity_results or [])}
     metrics_rows = []
     for name, res in clustering_results.items():
@@ -341,7 +335,7 @@ def save_results(
     with open(os.path.join(output_dir, "correlation_analysis.json"), "w") as f:
         json.dump(_jsonify(correlation_results), f, indent=2)
 
-    # External (target-aware) correlation analysis
+    # External correlation analysis
     if external_results is not None:
         with open(os.path.join(output_dir, "external_correlation_analysis.json"), "w") as f:
             json.dump(_jsonify(external_results), f, indent=2)
@@ -355,12 +349,12 @@ def save_results(
     for i, df in enumerate(summaries):
         df.to_csv(os.path.join(output_dir, f"cluster_summary_{i}.csv"), index=False)
 
-    # Window feature names (for FS importance plots)
+    # Window feature names (for FS importance)
     if window_feature_names is not None:
         with open(os.path.join(output_dir, "window_feature_names.json"), "w") as f:
             json.dump(window_feature_names, f)
 
-    # Embedding meta (selected indices / importances), skipping the torch model
+    # Embedding meta (selected indices / importances)
     if embed_meta is not None:
         meta_clean = {}
         for k, v in embed_meta.items():
@@ -383,11 +377,7 @@ def save_results(
     with open(os.path.join(output_dir, "config_snapshot.json"), "w") as f:
         json.dump(serialisable, f, indent=2)
 
-    print(f"\n[Results] Saved to '{output_dir}/'")
-    print("  embeddings.npy, y_targets.npy, y_classes.npy, y_class_info.json,")
-    print("  labels_*.npy, cluster_metrics.csv, correlation_analysis.json,")
-    print("  external_correlation_analysis.json, ae_training_history.json,")
-    print("  cluster_summary_*.csv, embed_meta.json, config_snapshot.json")
+    print(f"\n[Results] Saved to '{output_dir}/'.")
 
 
 def _jsonify(obj):

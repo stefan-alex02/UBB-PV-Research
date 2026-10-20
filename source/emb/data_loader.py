@@ -11,7 +11,7 @@ def load_and_preprocess(
 ) -> tuple[np.ndarray, np.ndarray, list[str], int]:
     """
     Load CSV, drop timestamp, normalize features, and keep the RAW (un-normalized)
-    target column separately so that downstream class ranges and |Δy| are in physical units.
+    target column separately so that downstream class ranges and |delta y| are in physical units.
 
     Returns
     -------
@@ -66,21 +66,19 @@ def build_windows(
         raise ValueError(f"Window size k={k} exceeds dataset length {N}.")
 
     if mode == "next_y":
-        # Keep ALL columns. Window i covers rows [i, i+k); target = y_raw[i+k] (next step).
-        # The very last window (ending at the final row) has no next step → dropped.
+        # Keep all columns
         n_full = N - k + 1
         windows = np.lib.stride_tricks.sliding_window_view(X, window_shape=(k, F))
         windows = windows.reshape(n_full, k * F)
-        windows = windows[:-1]              # drop last window (no next target)
-        y = y_raw[k:]                       # aligned: windows[i] -> y_raw[i+k]
+        windows = windows[:-1]              # drop last window
+        y = y_raw[k:]                       # aligned
         assert len(windows) == len(y), (len(windows), len(y))
-        print(f"[Windows] mode='next_y'  k={k} → {len(windows)} windows of dim {k * F} "
+        print(f"[Windows] mode='next_y'  k={k} -> {len(windows)} windows of dim {k * F} "
               f"(last window sacrificed). Target = next-step SolarGeneration.")
 
     elif mode == "latest_y":
-        # Drop the target column from features. Window i covers rows [i, i+k);
-        # target = y_raw[i+k-1] (latest step in the window). No window sacrificed.
-        feat_cols = [c for c in range(F) if c != target_idx] # todo check if target column is actually removed
+        # Drop the target column from features
+        feat_cols = [c for c in range(F) if c != target_idx]
         X_nt = X[:, feat_cols]
         F2 = X_nt.shape[1]
         n_full = N - k + 1
@@ -88,7 +86,7 @@ def build_windows(
         windows = windows.reshape(n_full, k * F2)
         y = y_raw[k - 1:]                   # latest timestep of each window
         assert len(windows) == len(y), (len(windows), len(y))
-        print(f"[Windows] mode='latest_y'  k={k} → {len(windows)} windows of dim {k * F2} "
+        print(f"[Windows] mode='latest_y'  k={k} -> {len(windows)} windows of dim {k * F2} "
               f"(target column excluded from features). Target = latest-step SolarGeneration.")
 
     else:

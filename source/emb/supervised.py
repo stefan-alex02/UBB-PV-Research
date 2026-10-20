@@ -22,25 +22,23 @@ raw-feature attribution possible even when the core model only ever sees embeddi
 Windowed-feature attributions are aggregated back to original columns by averaging
 over the per-timestep copies of each feature.
 
-Models: "xgboost", "random_forest", "mlp" (configurable params).
+Models: "xgboost", "random_forest", "mlp"
 """
 
 import re
-import numpy as np
 from collections import defaultdict
 
-from sklearn.model_selection import TimeSeriesSplit
+import numpy as np
 from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
-from sklearn.neural_network import MLPRegressor, MLPClassifier
-from sklearn.preprocessing import StandardScaler
-from sklearn.pipeline import make_pipeline
 from sklearn.metrics import (r2_score, mean_absolute_error, mean_squared_error,
                              precision_recall_fscore_support, balanced_accuracy_score,
                              accuracy_score, confusion_matrix)
+from sklearn.model_selection import TimeSeriesSplit
+from sklearn.neural_network import MLPRegressor, MLPClassifier
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
 from sklearn.utils.class_weight import compute_sample_weight
 
-
-# Model factory
 
 def _make_model(model_name: str, params: dict, random_seed: int):
     """Construct a fresh regressor. MLP is wrapped with a scaler (NNs need scaled inputs)."""
@@ -123,8 +121,6 @@ def _fit_classifier(model, X, y, sample_weight=None):
     return model
 
 
-# Metrics
-
 def _metrics(y_true, y_pred, y_range):
     """Regression metrics. NRMSE is RMSE normalized by the global y range
     (max - min) — the capacity-style normalization standard in PV forecasting."""
@@ -136,8 +132,6 @@ def _metrics(y_true, y_pred, y_range):
         "nrmse": float(rmse / y_range) if y_range > 0 else float("nan"),
     }
 
-
-# Per fold training (with optional internal validation curve)
 
 def _fit_capture_history(model_name, params, random_seed, Z_tr, y_tr, val_fraction):
     """
@@ -153,7 +147,7 @@ def _fit_capture_history(model_name, params, random_seed, Z_tr, y_tr, val_fracti
     """
     history = {}
 
-    # Build the internal time ordered validation tail (used by xgboost/mlp curves).
+    # Build the internal time ordered validation tail
     n = len(Z_tr)
     use_val = val_fraction and val_fraction > 0.0 and n > 20
     if use_val:
@@ -185,14 +179,13 @@ def _fit_capture_history(model_name, params, random_seed, Z_tr, y_tr, val_fracti
                 "val_curve":   [float(v) for v in evals["validation_1"]["rmse"]],
                 "curve_metric": "rmse",
             }
-            # Refit on the full training fold so the fold score uses all training data.
+
             model = _make_model(model_name, params, random_seed)
             model.fit(Z_tr, y_tr)
         else:
             model.fit(Z_tr, y_tr)
 
     elif model_name == "mlp":
-        # MLP already does internal early stopping validation; capture its curves.
         model = _make_model(model_name, params, random_seed)
         model.fit(Z_tr, y_tr)
         mlp = model.steps[-1][1] if hasattr(model, "steps") else model
@@ -205,7 +198,6 @@ def _fit_capture_history(model_name, params, random_seed, Z_tr, y_tr, val_fracti
                 "curve_metric": "mlp_training_loss",
             }
             if val_scores is not None:
-                # validation_scores_ are R^2 (higher better); store separately.
                 history["val_curve"] = [float(v) for v in val_scores]
                 history["val_curve_metric"] = "r2"
 
@@ -215,8 +207,6 @@ def _fit_capture_history(model_name, params, random_seed, Z_tr, y_tr, val_fracti
 
     return model, history
 
-
-# Cross-validation (on embeddings)
 
 def _ci95(values):
     """95% confidence interval half width for the mean (normal approx)."""
@@ -259,8 +249,6 @@ def _cv_evaluate(Z, y, model_name, params, n_splits, random_seed, val_fraction=0
           f"NRMSE={summary['nrmse_mean']:.4f} +/- {summary['nrmse_ci95']:.4f}")
     return fold_rows, summary, fold_histories
 
-
-# Per-class regression breakdown
 
 def _per_class_regression(Z, y, y_classes, model_name, params, n_splits, random_seed):
     """
@@ -311,8 +299,6 @@ def _per_class_regression(Z, y, y_classes, model_name, params, n_splits, random_
               f"NRMSE={m['nrmse_mean']:.4f}  (avg n_test={m['avg_n_test']:.0f})")
     return per_class
 
-
-# Classification metrics & CV
 
 def _specificity_per_class(cm):
     """Per-class specificity (true negative rate) from a confusion matrix."""
@@ -368,11 +354,10 @@ def _cv_classify(Z, y_classes, model_name, params, n_splits, random_seed, weight
         clf = _make_classifier(model_name, params, random_seed, n_classes)
         sw = compute_sample_weight("balanced", y_classes[tr]) if weighted else None
         _fit_classifier(clf, Z[tr], y_classes[tr], sample_weight=sw)
-        # Predict labels via argmax of class probabilities (uniform across models;
-        # avoids XGBoost multi:softprob returning a probability matrix from predict()).
+
         proba = clf.predict_proba(Z[te])
         pred = np.asarray(proba).argmax(axis=1)
-        # Map column index back to the actual class label.
+
         class_order = getattr(clf, "classes_", None)
         if class_order is None and hasattr(clf, "steps"):
             class_order = clf.steps[-1][1].classes_
@@ -397,7 +382,6 @@ def _cv_classify(Z, y_classes, model_name, params, n_splits, random_seed, weight
         summary[f"{key}_std"]  = float(vals.std())
         summary[f"{key}_ci95"] = _ci95(vals)
 
-    # Per-class metrics averaged across folds
     per_class_avg = {}
     for c in classes:
         per_class_avg[int(c)] = {}
@@ -416,7 +400,7 @@ def _cv_classify(Z, y_classes, model_name, params, n_splits, random_seed, weight
     return fold_rows, summary
 
 def _strip_timestep(name: str) -> str:
-    """'GHI_t-3' → 'GHI'. Leaves names without the suffix unchanged."""
+    """'GHI_t-3' -> 'GHI'. Leaves names without the suffix unchanged."""
     return re.sub(r"_t-\d+$", "", name)
 
 
@@ -429,8 +413,6 @@ def _aggregate_to_columns(importances, feature_names):
         cnt[base] += 1
     return {col: agg[col] / cnt[col] for col in agg}
 
-
-# Permutation importance on the raw->embed->predict wrapper
 
 def _permutation_importance_raw(predict_fn, X_raw, y, n_repeats, rng):
     """
@@ -453,16 +435,10 @@ def _permutation_importance_raw(predict_fn, X_raw, y, n_repeats, rng):
     return imps
 
 
-# SHAP on the wrapper (raw features)
-
 def _shap_raw(predict_fn, X_raw, random_seed, max_samples, n_background=50):
     """
     KernelSHAP on the wrapper (model-agnostic, required because the wrapper is
     embed_fn ∘ core_model, not a bare tree). Returns mean |SHAP| per raw feature.
-
-    WARNING: KernelSHAP is expensive — cost grows with raw feature count and the
-    number of explained samples, and each evaluation runs the full embed→predict
-    pipeline. Capped by max_samples; reduce it (or disable SHAP) if too slow.
     """
     import shap
     n = min(max_samples, len(X_raw))
@@ -471,8 +447,6 @@ def _shap_raw(predict_fn, X_raw, random_seed, max_samples, n_background=50):
     sv = explainer.shap_values(X_raw[:n], silent=True)
     return np.abs(np.asarray(sv)).mean(axis=0), n
 
-
-# Public entry point
 
 def _top_n(by_dict, n):
     """Return the top n (name, value) pairs from a dict, descending by value."""
@@ -541,13 +515,13 @@ def run_supervised_probe(
         "top_n": top_n,
     }
 
-    # Feature names (shared by explainability)
+    # Feature names
     names = window_feature_names
     if names is None or len(names) != X_windows.shape[1]:
         names = [f"feat_{i}" for i in range(X_windows.shape[1])]
     result["feature_names"] = names
 
-    # ── Regression task ──
+    # Regression task
     if do_reg:
         print("\n  [Regression] Cross-validation on embeddings:")
         folds, summary, fold_histories = _cv_evaluate(
@@ -562,7 +536,7 @@ def run_supervised_probe(
             "per_class": per_class_reg,
         }
 
-    # ── Classification task ──
+    # Classification task
     if do_clf:
         print("\n  [Classification] Cross-validation on embeddings"
               f"{' (balanced class weights)' if class_weighted else ''}:")
@@ -573,7 +547,7 @@ def run_supervised_probe(
             "cv_summary": csummary,
         }
 
-    # Fit final core model on ALL embeddings (for explainability)
+    # Fit final core model on ALL embeddings
     print(f"\n  Fitting final core model on all {len(Z)} embeddings (for explainability) ...")
     if do_reg:
         core_model = _make_model(model_name, model_params, random_seed)
@@ -590,8 +564,6 @@ def run_supervised_probe(
         sw = compute_sample_weight("balanced", y_classes) if class_weighted else None
         _fit_classifier(core_model, Z, y_classes, sample_weight=sw)
 
-        # Explain the probability of the model's own predicted class (a continuous,
-        # perturbation-sensitive scalar suitable for importance/SHAP).
         def wrapper_predict(X_raw):
             proba = core_model.predict_proba(embed_fn(np.asarray(X_raw, dtype=np.float32)))
             return proba.max(axis=1)
@@ -599,7 +571,7 @@ def run_supervised_probe(
         expl_target = wrapper_predict(X_windows)  # self-reference baseline for perm importance
         expl_kind = "classification max-class probability"
 
-    # ── Consistency check ──
+    # Consistency check
     Z_check = embed_fn(X_windows)
     max_abs_diff = float(np.max(np.abs(np.asarray(Z_check, dtype=np.float32) - Z)))
     if max_abs_diff > 1e-3:
@@ -622,7 +594,7 @@ def run_supervised_probe(
         {names[i]: float(perm[i]) for i in range(len(names))}, top_n)
     result["top_importance_columns"] = _top_n(perm_by_col, top_n)
 
-    # 6. SHAP on raw (optional)
+    # 6. SHAP on raw
     if run_shap:
         print(f"  Computing SHAP on raw features (through wrapper; KernelSHAP) ...")
         print(f"    [Note] KernelSHAP cost scales with shap_max_samples (={shap_max_samples}) "

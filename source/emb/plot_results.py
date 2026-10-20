@@ -1,25 +1,16 @@
 """
 Visualise the outputs of the PV embedding pipeline.
-
-Usage
------
-    python plot_results.py                        # uses default RESULTS_DIR = "results"
-    python plot_results.py path/to/results_dir    # custom path
-
-Produces one PNG per figure inside <results_dir>/plots/.
 """
 
+import json
 import os
 import sys
-import json
-import numpy as np
-import pandas as pd
+
 import matplotlib
 import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
+import numpy as np
+import pandas as pd
 from matplotlib.patches import Patch
-from scipy.spatial.distance import pdist, squareform
-from scipy import stats
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.metrics import silhouette_samples
@@ -79,7 +70,7 @@ def load_results(results_dir: str) -> dict:
     else:
         data["window_feature_names"] = None
 
-    # New target-aware artifacts (optional)
+    # New target-aware artifacts
     def _opt_npy(name):
         p = path(name)
         return np.load(p) if os.path.exists(p) else None
@@ -113,15 +104,13 @@ def label_colors(labels, cmap=COLORMAP):
     return {lbl: ("lightgrey" if lbl == -1 else cm(i)) for i, lbl in enumerate(unique)}
 
 
-# 1. PCA + t-SNE 2-D projections coloured by cluster
-
 def plot_projections(d: dict):
     Z = d["Z"]
     labels_dict = d["labels"]
     cfg = d["config"]
     emb_method = cfg.get("EMBEDDING_METHOD", "")
 
-    # Compute PCA (fast) and t-SNE (slower but better topology)
+    # Compute PCA and t-SNE
     pca2 = PCA(n_components=2, random_state=42).fit_transform(Z)
     print("  Computing t-SNE ...")
     tsne2 = TSNE(n_components=2, random_state=42, perplexity=40, max_iter=500).fit_transform(Z)
@@ -154,8 +143,6 @@ def plot_projections(d: dict):
         print(f"  Saved: {fpath}")
 
 
-# 2. Cluster size distribution bar chart
-
 def _alg_for_summary_index(d: dict, idx: int) -> str:
     """Map a cluster_summary_<idx> to its algorithm name via cluster_metrics row order
     (the authoritative order from save_results), not filesystem listing order."""
@@ -185,10 +172,10 @@ def plot_cluster_sizes(d: dict):
             ax.invert_yaxis()
             ax.set_xlabel("Number of samples")
             ax.set_ylabel("Cluster")
-            # Ensure there's a little space on the right for numeric labels
+
             xmax = top_df["size"].max() if len(top_df) else 1
             ax.set_xlim(0, xmax * 1.10)
-            # Label the bars with their counts (numbers placed to the right)
+
             ax.bar_label(bars, fmt="%d", padding=4, fontsize=8)
             n_noise = int(df.loc[df["cluster"] == -1, "size"].sum()) if -1 in df["cluster"].values else 0
             ax.set_title(f"Cluster sizes (top 20) ({alg.upper()})\n"
@@ -209,8 +196,6 @@ def plot_cluster_sizes(d: dict):
         plt.close()
         print(f"  Saved: {fpath}")
 
-
-# 3. Silhouette plot per sample
 
 def plot_silhouette(d: dict):
     Z = d["Z"]
@@ -256,8 +241,6 @@ def plot_silhouette(d: dict):
         print(f"  Saved: {fpath}")
 
 
-# 4. Cluster quality metrics bar chart
-
 def plot_cluster_metrics(d: dict):
     """One standalone metrics figure per clustering method."""
     df = d["cluster_metrics"]
@@ -292,8 +275,6 @@ def plot_cluster_metrics(d: dict):
         print(f"  Saved: {fpath}")
 
 
-# 5. Intra vs inter cluster distance distributions
-
 def plot_distance_distributions(d: dict, n_pairs: int = 4000, seed: int = 42):
     Z = d["Z"]
     rng = np.random.default_rng(seed)
@@ -325,8 +306,6 @@ def plot_distance_distributions(d: dict, n_pairs: int = 4000, seed: int = 42):
         plt.close()
         print(f"  Saved: {fpath}")
 
-
-# 6. Correlation scatter: embedding distance vs same-cluster indicator
 
 def plot_correlation_summary(d: dict):
     """One standalone internal-correlation figure per clustering method."""
@@ -368,8 +347,6 @@ def plot_correlation_summary(d: dict):
         print(f"  Saved: {fpath}")
 
 
-# 7. Feature importance (for FS-based embedding methods)
-
 def plot_feature_importance(d: dict):
     meta = d.get("embed_meta", {})
     method = meta.get("method", d["config"].get("EMBEDDING_METHOD", ""))
@@ -408,8 +385,6 @@ def plot_feature_importance(d: dict):
     print(f"  Saved: {fpath}")
 
 
-# 8. Embedding dimension statistics (mean +/- std per dimension)
-
 def plot_embedding_stats(d: dict):
     Z = d["Z"]
     means = Z.mean(axis=0)
@@ -434,8 +409,6 @@ def plot_embedding_stats(d: dict):
     print(f"  Saved: {fpath}")
 
 
-# 9. Embedding correlation heatmap
-
 def plot_embedding_correlation(d: dict):
     Z = d["Z"]
     if Z.shape[1] > 64:
@@ -458,8 +431,6 @@ def plot_embedding_correlation(d: dict):
     print(f"  Saved: {fpath}")
 
 
-# 10. Autoencoder training history (train vs val loss)
-
 def plot_training_history(d: dict):
     hist = d.get("ae_history")
     if not hist or not hist.get("epoch"):
@@ -468,7 +439,7 @@ def plot_training_history(d: dict):
     epochs = hist["epoch"]
     train  = hist["train_loss"]
     val    = hist.get("val_loss", [])
-    has_val = val and not all(v != v for v in val)  # not all NaN
+    has_val = val and not all(v != v for v in val)
 
     fig, ax = plt.subplots(figsize=(8, 4.5))
     ax.plot(epochs, train, label="Train loss", color="#4C72B0", linewidth=1.8)
@@ -490,8 +461,6 @@ def plot_training_history(d: dict):
     plt.close()
     print(f"  Saved: {fpath}")
 
-
-# 11. External intra/inter correlation (target-aware)
 
 def plot_external_correlation(d: dict):
     """One standalone external-correlation figure per clustering method."""
@@ -528,8 +497,6 @@ def plot_external_correlation(d: dict):
         print(f"  Saved: {fpath}")
 
 
-# 12. Homogeneity score per algorithm
-
 def plot_homogeneity(d: dict):
     """One standalone homogeneity figure per clustering method."""
     df = d["cluster_metrics"]
@@ -552,8 +519,6 @@ def plot_homogeneity(d: dict):
         plt.close()
         print(f"  Saved: {fpath}")
 
-
-# 13. Target distribution with class boundaries
 
 def plot_target_distribution(d: dict):
     y = d.get("y")
@@ -588,8 +553,6 @@ def plot_target_distribution(d: dict):
     print(f"  Saved: {fpath}")
 
 
-# 14. Supervised probe: CV scores
-
 def _reg(sup):
     """Return the regression sub-results, supporting both the nested layout
     (sup['regression']) and the older flat layout."""
@@ -621,7 +584,7 @@ def plot_supervised_scores(d: dict):
     for ax, (key, label) in zip(axes, metrics):
         mean = summary.get(f"{key}_mean", float("nan"))
         ci   = summary.get(f"{key}_ci95", summary.get(f"{key}_std", 0.0))
-        # Bar shows the CV mean with a 95% confidence interval; points show each fold.
+
         bar = ax.bar(["CV mean"], [mean], yerr=[ci], capsize=6,
                      color="#4C72B0", edgecolor="white", width=0.5)
         ax.bar_label(bar, fmt="%.3f", fontsize=9, padding=3)
@@ -1085,8 +1048,6 @@ def plot(results_dir: str = None, generate_plots: bool = True):
 
     print(f"\nAll plots saved to: {os.path.join(results_dir, 'plots')}/")
 
-
-# Main
 
 def main():
     plot(results_dir)

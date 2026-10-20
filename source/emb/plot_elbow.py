@@ -1,7 +1,9 @@
 import os
 from typing import Sequence, Optional, Tuple
-import numpy as np
+
 import matplotlib.pyplot as plt
+import numpy as np
+
 
 def find_elbow_index(ks: Sequence[float], inertias: Sequence[float]) -> int:
     """

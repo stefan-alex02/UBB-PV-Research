@@ -1,5 +1,5 @@
 """
-Pipeline configuration. Edit this file to change hyperparameters and technique choices.
+Pipeline configuration.
 """
 from datetime import datetime
 
@@ -15,7 +15,7 @@ WINDOW_SIZE = 2   # k: number of consecutive rows per sample
 #                the LATEST timestep in the window. No window sacrificed.
 WINDOWING_MODE = "latest_y"
 
-# Name of the target column (solar generation)
+# Name of the target column
 TARGET_COL = "SolarGeneration"
 
 # Normalization
@@ -36,7 +36,7 @@ NORMALIZE_EMBEDDINGS = False
 AE_LATENT_DIM    = 8       # Embedding dimension
 # Encoder hidden layer sizes (decoder mirrors this). Two options:
 #   - explicit list, e.g. [256, 128, 64]  (used as-is)
-#   - "auto"  → geometric funnel auto-derived from input dim & latent dim,
+#   - "auto"  -> geometric funnel auto-derived from input dim & latent dim,
 #               scaling automatically with WINDOW_SIZE. Recommended.
 # AE_HIDDEN_DIMS   = "auto"
 AE_HIDDEN_DIMS   = [64, 32, 16]

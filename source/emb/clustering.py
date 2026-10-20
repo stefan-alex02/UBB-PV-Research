@@ -118,9 +118,9 @@ def _build_connectivity(Z, kind, param):
     """Build a sparse connectivity matrix to make agglomerative clustering
     memory-feasible on large N (avoids the O(n^2) full distance matrix).
 
-    kind: "none"   → no constraint (dense, O(n^2) memory)
-          "knn"    → k-nearest-neighbors graph (param = k, int)
-          "radius" → radius-neighbors graph (param = radius, float)
+    kind: "none"   -> no constraint (dense, O(n^2) memory)
+          "knn"    -> k-nearest-neighbors graph (param = k, int)
+          "radius" -> radius-neighbors graph (param = radius, float)
     """
     if kind == "none":
         return None
